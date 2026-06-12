@@ -1,0 +1,29 @@
+{
+  "name": "eternal-return-meta-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.5.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.3",
+    "next": "16.2.6",
+    "openai": "^5.20.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.4"
+  }
+}
