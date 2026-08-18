@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchUserByNickname, getUserNum } from "@/lib/eternal-return";
+import { fetchUserByNickname, getUserId, getUserNum } from "@/lib/eternal-return";
 import { getPlayerSummary } from "@/lib/data";
 
 export async function GET(
@@ -19,9 +19,12 @@ export async function GET(
   }
 
   const user = await fetchUserByNickname(decoded);
+  const userNum = getUserNum(user);
+  const userId = getUserId(user);
   return NextResponse.json({
     data: {
-      user_num: getUserNum(user),
+      user_num: userNum ?? 0,
+      external_user_id: userId,
       nickname: decoded,
       total_games: 0,
       favorite_characters: []

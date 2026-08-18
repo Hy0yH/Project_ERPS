@@ -17,11 +17,14 @@ export default async function CharacterDetailPage({
   return (
     <>
       <section className="page-head">
-        <div>
-          <h1>{character?.name_ko ?? `캐릭터 ${characterCode}`}</h1>
+        <div className="headline-block">
+          <span className="headline-slash" aria-hidden="true" />
+          <h1>{character?.display_name ?? `캐릭터 ${characterCode}`}</h1>
           <p>캐릭터 메타, 함께 좋은 조합, 최근 패치 히스토리입니다.</p>
         </div>
-        {character ? <span className="badge">{character.tier}</span> : null}
+        {character ? (
+          <span className={`badge tier-${character.tier.toLowerCase()}`}>{character.tier}</span>
+        ) : null}
       </section>
 
       {character ? (
@@ -51,10 +54,14 @@ export default async function CharacterDetailPage({
         <div className="span-6 stack">
           <h2>좋은 조합</h2>
           {comps.slice(0, 10).map((comp) => (
-            <div className="item-card split" key={comp.comp_key}>
-              <strong>{comp.comp_key}</strong>
-              <span className="muted">
-                {comp.games}게임 · TOP3 {displayPercent(comp.top3_rate)}
+            <div className="item-card split meta-row" key={`${comp.comp_key}:${comp.character_weapon_keys.join("|")}`}>
+              <strong className="item-title">
+                <span className={`badge tier-${comp.tier.toLowerCase()}`}>{comp.tier}</span>
+                {comp.comp_name}
+              </strong>
+              <span className="muted item-stats">
+                {comp.games}게임 · TOP3 {displayPercent(comp.top3_rate)} ·{" "}
+                <strong className="stat-strong">승률 {displayPercent(comp.win_rate)}</strong>
               </span>
             </div>
           ))}

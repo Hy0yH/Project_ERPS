@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteNav } from "@/components/SiteNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,14 +13,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko">
       <body>
         <header className="topbar">
-          <Link className="brand" href="/">
-            ERPS
-          </Link>
-          <nav>
-            <Link href="/characters">캐릭터 티어</Link>
-            <Link href="/recommend">추천</Link>
-            <Link href="/admin/patch-notes">패치 import</Link>
-          </nav>
+          <div className="topbar-inner">
+            <Link className="brand" href="/">
+              ERPS
+            </Link>
+            <SiteNav />
+          </div>
         </header>
         <main>{children}</main>
       </body>

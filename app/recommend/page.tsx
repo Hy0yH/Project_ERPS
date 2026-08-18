@@ -8,9 +8,12 @@ export default async function RecommendPage() {
   return (
     <>
       <section className="page-head">
-        <div>
-          <h1>혼합 추천</h1>
-          <p>팀원 픽, 내 선호 캐릭터, 최근 플레이 이력을 함께 반영합니다.</p>
+        <div className="headline-block">
+          <span className="headline-slash" aria-hidden="true" />
+          <h1>실험체 추천</h1>
+          <p>
+            상위권 조합 통계, 현재 패치 표본, 플레이어의 실제 사용 기록을 함께 분석해 최적의 후보를 찾습니다.
+          </p>
         </div>
       </section>
       <div className="stack">
