@@ -1,6 +1,8 @@
 .next/
 node_modules/
+.pnpm-store/
 .tools/
+.scheduler/
 .env
 .env.local
 .vercel/
@@ -11,3 +13,4 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.next-dev*.log

@@ -5,7 +5,8 @@ export default function AdminPatchNotesPage() {
   return (
     <>
       <section className="page-head">
-        <div>
+        <div className="headline-block">
+          <span className="headline-slash" aria-hidden="true" />
           <h1>패치노트 import</h1>
           <p>공식 패치노트 URL을 가져와 원문과 초벌 변경 내역을 저장합니다.</p>
         </div>
