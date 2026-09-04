@@ -53,7 +53,7 @@ export const ER_RECOMMEND_HIGH_SAMPLE_GAMES = getOptionalNumberEnv(
 );
 export const ER_ANALYSIS_PLAYER_MATCH_LIMIT = getOptionalNumberEnv(
   "ER_ANALYSIS_PLAYER_MATCH_LIMIT",
-  30
+  50
 );
 export const ER_ANALYSIS_PEER_GAME_LIMIT = getOptionalNumberEnv(
   "ER_ANALYSIS_PEER_GAME_LIMIT",

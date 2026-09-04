@@ -14,6 +14,7 @@ import {
   teamCompRankingScore,
   userAffinityScore
 } from "@/lib/stats";
+import { patchChangeAppliesToWeapon } from "@/lib/bundled-patch-changes";
 import {
   ER_RECOMMEND_HIGH_SAMPLE_GAMES,
   ER_RECOMMEND_MIN_SAMPLE_GAMES,
@@ -98,7 +99,8 @@ export async function buildRecommendations(input: RecommendationInput): Promise<
       const meta = resolveCandidateMeta(metaRows, character.character_code, comp) ??
         metaRows.find((item) => item.character_code === character.character_code);
       const recommendedCharacter = meta ?? character;
-      const recentPatchChanges = patchChangesByCharacter.get(character.character_code) ?? [];
+      const recentPatchChanges = (patchChangesByCharacter.get(character.character_code) ?? [])
+        .filter((change) => patchChangeAppliesToWeapon(change, recommendedCharacter.weapon_code));
       const patchSummary = recentPatchChanges.slice(0, 2).map((change) => change.raw_change_text);
       const patchScore = getPatchScore(recentPatchChanges);
       const userScore = userAffinityScore(character.character_code, playerFavorites);

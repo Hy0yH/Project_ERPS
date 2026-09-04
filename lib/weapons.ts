@@ -52,6 +52,10 @@ const WEAPON_TYPE_BY_CODE: Record<number, string> = {
   25: "VFArm"
 };
 
+const WEAPON_CODE_BY_TYPE = Object.fromEntries(
+  Object.entries(WEAPON_TYPE_BY_CODE).map(([code, type]) => [type, Number(code)])
+) as Record<string, number>;
+
 export function weaponName(weaponCode: number | null | undefined) {
   const code = Number(weaponCode ?? 0);
   if (!code) return "\ubb34\uae30 \ubbf8\uc0c1";
@@ -60,6 +64,10 @@ export function weaponName(weaponCode: number | null | undefined) {
 
 export function weaponType(weaponCode: number | null | undefined) {
   return WEAPON_TYPE_BY_CODE[Number(weaponCode ?? 0)];
+}
+
+export function weaponCodeForType(type: string | null | undefined) {
+  return type ? WEAPON_CODE_BY_TYPE[type] : undefined;
 }
 
 export function isCharacterWeapon(

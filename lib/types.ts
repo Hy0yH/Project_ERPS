@@ -1,3 +1,11 @@
+import type {
+  CombatArchetypeReviewStatus,
+  CombatFunction,
+  CombatMetricWeightId,
+  CombatRangeProfile,
+  CombatScoreProfile
+} from "@/lib/combat-archetypes";
+
 export type Confidence = "high" | "medium" | "low";
 
 export type Character = {
@@ -5,6 +13,9 @@ export type Character = {
   name_ko: string;
   name_en: string | null;
   role: string | null;
+  official_archetype_primary?: string | null;
+  official_archetype_secondary?: string | null;
+  official_range_type?: string | null;
   weapon_types: string[] | null;
   is_active: boolean;
 };
@@ -102,6 +113,7 @@ export type PlayerDataScope = "season" | "current_patch";
 export type PatchChange = {
   patch_version: string;
   character_code: number;
+  weapon_codes?: number[];
   change_type: "buff" | "nerf" | "adjustment" | "bugfix" | "indirect";
   target_type: string | null;
   target_name: string | null;
@@ -184,7 +196,7 @@ export type PlayerAnalysisMetricId =
   | "weapon_level_per_minute"
   | "credits_per_minute"
   | "support_per_minute"
-  | "vision_actions_per_minute"
+  | "view_contribution_per_minute"
   | "top3_rate"
   | "win_rate"
   | "average_rank"
@@ -204,7 +216,8 @@ export type PlayerAnalysisComparisonStatus =
   | "insufficient_cohort"
   | "same_pick_required"
   | "insufficient_player_games"
-  | "insufficient_peer_history";
+  | "insufficient_peer_history"
+  | "not_applicable";
 
 export type PlayerAnalysisMetric = {
   id: PlayerAnalysisMetricId;
@@ -214,9 +227,10 @@ export type PlayerAnalysisMetric = {
   direction: "higher" | "lower";
   cohort_mean: number | null;
   same_pick_mean: number | null;
+  role_mean: number | null;
   reference_mean: number | null;
   reference_value: number | null;
-  reference_type: "same_pick" | "mmr" | null;
+  reference_type: "same_pick" | "role" | "mmr" | null;
   delta_percent: number | null;
   delta_absolute: number | null;
   relative_score: number | null;
@@ -281,6 +295,19 @@ export type PlayerAnalysis = {
     unique_picks: number;
     picks: PlayerAnalysisPick[];
   };
+  combat_context: {
+    score_profile: CombatScoreProfile;
+    label: string;
+    range_profile: CombatRangeProfile;
+    primary_function: CombatFunction;
+    secondary_function: CombatFunction | null;
+    classification_confidence: Confidence;
+    review_status: CombatArchetypeReviewStatus;
+    classification_version: number;
+    benchmark_eligible: boolean;
+    metric_weights: Record<CombatMetricWeightId, number>;
+    reference_type: "same_pick" | "role" | "mmr" | null;
+  } | null;
   dimensions: PlayerAnalysisDimension[];
   strengths: PlayerAnalysisInsight[];
   improvement_priorities: PlayerAnalysisInsight[];
@@ -293,10 +320,15 @@ export type PlayerAnalysis = {
     overall_players: number;
     same_pick_games: number;
     same_pick_players: number;
+    role_games: number;
+    role_players: number;
     minimum_overall_games: number;
     minimum_overall_players: number;
     minimum_same_pick_games: number;
     minimum_same_pick_players: number;
+    minimum_role_games: number;
+    minimum_role_players: number;
+    minimum_combat_peer_games: number;
   };
   caveats: string[];
   generated_at: string;

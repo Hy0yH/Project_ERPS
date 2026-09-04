@@ -7,10 +7,18 @@ import type {
   PlayerAnalysisMetric,
   PlayerAnalysisMetricId
 } from "@/lib/types";
+import {
+  combatMetricWeights,
+  combatScoreProfileLabel,
+  isRoleBenchmarkEligible,
+  type CombatArchetypeClassification,
+  type CombatScoreProfile
+} from "@/lib/combat-archetypes";
 
-export const PLAYER_ANALYSIS_VERSION = 1;
-export const PLAYER_ANALYSIS_CACHE_VERSION = 4;
-export const PLAYER_ANALYSIS_GAME_LIMIT = 30;
+export const PLAYER_ANALYSIS_BASE_VERSION = 1;
+export const PLAYER_ANALYSIS_VERSION = 2;
+export const PLAYER_ANALYSIS_CACHE_VERSION = 12;
+export const PLAYER_ANALYSIS_GAME_LIMIT = 50;
 export const PLAYER_ANALYSIS_PEER_GAME_LIMIT = 5;
 export const PLAYER_ANALYSIS_CACHE_HOURS = 6;
 export const PLAYER_ANALYSIS_MMR_BUCKET = 500;
@@ -18,7 +26,10 @@ export const PLAYER_ANALYSIS_MIN_OVERALL_GAMES = 50;
 export const PLAYER_ANALYSIS_MIN_OVERALL_PLAYERS = 30;
 export const PLAYER_ANALYSIS_MIN_SAME_PICK_GAMES = 30;
 export const PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS = 15;
+export const PLAYER_ANALYSIS_MIN_ROLE_GAMES = 50;
+export const PLAYER_ANALYSIS_MIN_ROLE_PLAYERS = 30;
 export const PLAYER_ANALYSIS_MIN_PLAYER_PICK_GAMES = 5;
+export const PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES = 3;
 export const PLAYER_ANALYSIS_MIN_STABILITY_GAMES = 5;
 export const PLAYER_ANALYSIS_MIN_STABILITY_PLAYERS = 20;
 
@@ -37,6 +48,8 @@ type MetricDefinition = {
   allowPercentDelta?: boolean;
   referenceStatistic?: "mean" | "median";
   scoreMethod?: "percentile" | "sampling_distribution";
+  ignoreIfBaselineZero?: boolean;
+  supplementaryOnly?: boolean;
 };
 
 type NormalizedGame = {
@@ -47,6 +60,7 @@ type NormalizedGame = {
   top3: number;
   win: number;
   playTimeMinutes: number;
+  viewContributionAvailable: boolean;
   metrics: Record<PlayerAnalysisMetricId, number>;
 };
 
@@ -69,15 +83,15 @@ export type BenchmarkStats = {
 };
 
 const METRICS: MetricDefinition[] = [
-  { id: "damage_per_minute", label: "분당 플레이어 피해", dimension: "combat", unit: "per_minute", direction: "higher", weight: 0.45, actionable: true },
-  { id: "kill_participation", label: "킬 관여율", dimension: "combat", unit: "percent", direction: "higher", weight: 0.35, actionable: true },
-  { id: "cc_per_minute", label: "분당 군중제어", dimension: "combat", unit: "per_minute", direction: "higher", weight: 0.2, actionable: true },
+  { id: "damage_per_minute", label: "분당 플레이어 피해", dimension: "combat", unit: "per_minute", direction: "higher", weight: 0.45, actionable: true, minimumPeerGames: PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES },
+  { id: "kill_participation", label: "킬 관여율", dimension: "combat", unit: "percent", direction: "higher", weight: 0.35, actionable: true, minimumPeerGames: PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES },
+  { id: "cc_per_minute", label: "분당 군중제어", dimension: "combat", unit: "per_minute", direction: "higher", weight: 0.2, actionable: true, minimumPeerGames: PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES },
   { id: "weapon_level_per_minute", label: "분당 무기 숙련 성장", dimension: "growth", unit: "per_minute", direction: "higher", weight: 0.4, actionable: true },
   { id: "credits_per_minute", label: "분당 크레딧 획득", dimension: "growth", unit: "per_minute", direction: "higher", weight: 0.6, actionable: true },
   { id: "hunts_per_minute", label: "분당 야생동물 처치", dimension: "farming", unit: "per_minute", direction: "higher", weight: 0.5, actionable: true },
   { id: "monster_damage_per_minute", label: "분당 야생동물 피해", dimension: "farming", unit: "per_minute", direction: "higher", weight: 0.5, actionable: true },
-  { id: "support_per_minute", label: "분당 회복·보호", dimension: "team", unit: "per_minute", direction: "higher", weight: 1, actionable: true, requiresSamePick: true },
-  { id: "vision_actions_per_minute", label: "분당 시야 활동", dimension: "vision", unit: "per_minute", direction: "higher", weight: 1, actionable: true },
+  { id: "support_per_minute", label: "분당 회복·보호", dimension: "team", unit: "per_minute", direction: "higher", weight: 0.2, actionable: false, requiresSamePick: true, referenceStatistic: "mean", ignoreIfBaselineZero: true, supplementaryOnly: true },
+  { id: "view_contribution_per_minute", label: "분당 시야 기여 점수", dimension: "vision", unit: "per_minute", direction: "higher", weight: 1, actionable: true },
   { id: "top3_rate", label: "TOP3 비율", dimension: "stability", unit: "percent", direction: "higher", weight: 0.3, actionable: false, referenceStatistic: "mean", scoreMethod: "sampling_distribution" },
   { id: "win_rate", label: "승률", dimension: "stability", unit: "percent", direction: "higher", weight: 0.15, actionable: false, referenceStatistic: "mean", scoreMethod: "sampling_distribution" },
   { id: "average_rank", label: "평균 순위", dimension: "stability", unit: "rank", direction: "lower", weight: 0.25, actionable: false, allowPercentDelta: false, referenceStatistic: "mean", scoreMethod: "sampling_distribution" },
@@ -86,7 +100,7 @@ const METRICS: MetricDefinition[] = [
 ];
 
 const DIMENSION_LABELS: Record<PlayerAnalysisDimensionKey, string> = {
-  combat: "교전",
+  combat: "전투",
   growth: "성장",
   farming: "파밍",
   team: "팀 기여",
@@ -128,13 +142,6 @@ export function normalizeAnalysisRow(row: AnalysisRow): NormalizedGame {
   const assists = numeric(row, "player_assistant", "playerAssistant");
   const teamKills = numeric(row, "team_kill", "teamKill");
   const gameRank = numeric(row, "game_rank", "gameRank");
-  const visionActions =
-    numeric(row, "add_surveillance_camera", "addSurveillanceCamera") +
-    numeric(row, "add_telephoto_camera", "addTelephotoCamera") +
-    numeric(row, "remove_surveillance_camera", "removeSurveillanceCamera") +
-    numeric(row, "remove_telephoto_camera", "removeTelephotoCamera") +
-    numeric(row, "use_security_console", "useSecurityConsole");
-
   return {
     userNum: numeric(row, "user_num", "userNum"),
     characterCode: numeric(row, "character_code", "characterNum", "characterCode"),
@@ -143,6 +150,7 @@ export function normalizeAnalysisRow(row: AnalysisRow): NormalizedGame {
     top3: gameRank > 0 && gameRank <= 3 ? 1 : 0,
     win: gameRank === 1 ? 1 : 0,
     playTimeMinutes: playTime > 0 ? playTime / 60 : 0,
+    viewContributionAvailable: hasViewContribution(row),
     metrics: {
       damage_per_minute: perMinute(numeric(row, "damage_to_player", "damageToPlayer"), playTime),
       kill_participation: teamKills > 0 ? clamp((kills + assists) / teamKills, 0, 1) : 0,
@@ -155,7 +163,10 @@ export function normalizeAnalysisRow(row: AnalysisRow): NormalizedGame {
         numeric(row, "team_recover", "teamRecover") + numeric(row, "protect_absorb", "protectAbsorb"),
         playTime
       ),
-      vision_actions_per_minute: perMinute(visionActions, playTime),
+      view_contribution_per_minute: perMinute(
+        viewContribution(row),
+        playTime
+      ),
       top3_rate: gameRank > 0 && gameRank <= 3 ? 1 : 0,
       win_rate: gameRank === 1 ? 1 : 0,
       average_rank: gameRank,
@@ -176,7 +187,10 @@ export function buildBenchmarkStats(rows: AnalysisRow[]): BenchmarkStats {
   const metrics = Object.fromEntries(
     METRICS.map((definition) => {
       const eligibleGroups = [...byUser.values()].filter(
-        (group) => group.length >= (definition.minimumPeerGames ?? 1)
+        (group) => group.filter((game) => metricAvailable(game, definition.id)).length >=
+          (definition.minimumPeerGames ?? 1)
+      ).map(
+        (group) => group.filter((game) => metricAvailable(game, definition.id))
       );
       const values = eligibleGroups.map((group) => aggregateNormalizedGames(group)[definition.id]);
       const eligibleGames = eligibleGroups.flat();
@@ -211,12 +225,15 @@ export function buildPlayerAnalysis(input: {
   playerRows: AnalysisRow[];
   overallRows: AnalysisRow[];
   samePickRows: AnalysisRow[];
+  roleRows?: AnalysisRow[];
+  combatClassification?: CombatArchetypeClassification | null;
   characterNames?: Map<number, string>;
   rank?: { mmr?: number | null; rank?: number | null; serverRank?: number | null; rankPercent?: number | null };
   seasonId: number;
   patchKey: string | null;
   supplementalGames: number;
   expandedBenchmark: boolean;
+  expandedRoleBenchmark?: boolean;
   generatedAt?: string;
 }): PlayerAnalysis {
   const normalizedPlayerGames = input.playerRows
@@ -231,33 +248,59 @@ export function buildPlayerAnalysis(input: {
   const mainPickPlayerAggregate = aggregateNormalizedGames(mainPickPlayerGames);
   const overall = buildBenchmarkStats(input.overallRows);
   const samePick = buildBenchmarkStats(input.samePickRows);
+  const role = buildBenchmarkStats(input.roleRows ?? []);
+  const combatClassification = input.combatClassification ?? null;
+  const roleBenchmarkEligible = Boolean(
+    combatClassification && isRoleBenchmarkEligible(combatClassification)
+  );
   const playerConfidence = confidenceFromAnalysisGames(normalizedPlayerGames.length);
   const samePickUsable = samePick.sampleGames >= PLAYER_ANALYSIS_MIN_SAME_PICK_GAMES &&
     samePick.samplePlayers >= PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS;
   const overallUsable = overall.sampleGames >= PLAYER_ANALYSIS_MIN_OVERALL_GAMES &&
     overall.samplePlayers >= PLAYER_ANALYSIS_MIN_OVERALL_PLAYERS;
+  const roleUsable = roleBenchmarkEligible &&
+    role.sampleGames >= PLAYER_ANALYSIS_MIN_ROLE_GAMES &&
+    role.samplePlayers >= PLAYER_ANALYSIS_MIN_ROLE_PLAYERS;
   const playerSamePickUsable = mainPickPlayerGames.length >= PLAYER_ANALYSIS_MIN_PLAYER_PICK_GAMES;
 
   const metrics = METRICS.map((definition) => {
     const overallCandidate = overall.metrics[definition.id];
     const samePickCandidate = samePick.metrics[definition.id];
+    const roleCandidate = role.metrics[definition.id];
     const overallStats = overallUsable && metricBenchmarkUsable(overallCandidate, "overall", definition)
       ? overallCandidate
       : null;
     const samePickStats = samePickUsable && metricBenchmarkUsable(samePickCandidate, "same_pick", definition)
       ? samePickCandidate
       : null;
+    const roleStats = definition.dimension === "combat" && roleUsable &&
+      metricBenchmarkUsable(roleCandidate, "role", definition)
+      ? roleCandidate
+      : null;
     const canCompareSamePick = playerSamePickUsable && Boolean(samePickStats);
+    const canCompareRole = playerSamePickUsable && Boolean(roleStats);
     const referenceType = canCompareSamePick
       ? "same_pick" as const
       : definition.requiresSamePick
         ? null
-        : overallStats
-          ? "mmr" as const
+        : definition.dimension === "combat" && canCompareRole
+          ? "role" as const
+          : definition.dimension === "combat" && combatClassification
+            ? null
+            : overallStats
+              ? "mmr" as const
+              : null;
+    const reference = referenceType === "same_pick"
+      ? samePickStats
+      : referenceType === "role"
+        ? roleStats
+        : referenceType === "mmr"
+          ? overallStats
           : null;
-    const reference = referenceType === "same_pick" ? samePickStats : referenceType === "mmr" ? overallStats : null;
-    const playerGames = referenceType === "same_pick" ? mainPickPlayerGames.length : normalizedPlayerGames.length;
-    const value = referenceType === "same_pick"
+    const usesMainPick = referenceType === "same_pick" || referenceType === "role";
+    const relevantPlayerGames = usesMainPick ? mainPickPlayerGames : normalizedPlayerGames;
+    const playerGames = relevantPlayerGames.filter((game) => metricAvailable(game, definition.id)).length;
+    const value = usesMainPick
       ? mainPickPlayerAggregate[definition.id]
       : playerAggregate[definition.id];
     const playerHistoryEnough = definition.id !== "rank_stability" ||
@@ -295,6 +338,7 @@ export function buildPlayerAnalysis(input: {
       direction: definition.direction,
       cohort_mean: overallStats?.mean ?? null,
       same_pick_mean: samePickStats?.mean ?? null,
+      role_mean: roleStats?.mean ?? null,
       reference_mean: reference?.mean ?? null,
       reference_value: referenceValue,
       reference_type: referenceType,
@@ -316,14 +360,16 @@ export function buildPlayerAnalysis(input: {
     } satisfies PlayerAnalysisMetric;
   });
 
-  const dimensions = buildDimensions(metrics);
-  const scoredMetrics = metrics.filter((metric) => metric.relative_score !== null);
+  const dimensions = buildDimensions(metrics, combatClassification?.scoreProfile ?? null);
+  const scoredMetrics = metrics.filter((metric) =>
+    metric.relative_score !== null && !metricDefinition(metric.id).supplementaryOnly
+  );
   const analysisConfidence = scoredMetrics.length
     ? lowestConfidence([playerConfidence, ...scoredMetrics.map((metric) => metric.confidence)])
     : "low";
   const picks = buildPickProfile(normalizedPlayerGames, input.characterNames ?? new Map());
   const strengths = buildStrengths(metrics);
-  const improvementPriorities = buildImprovementPriorities(metrics, { overall, samePick });
+  const improvementPriorities = buildImprovementPriorities(metrics, { overall, samePick, role });
   const latestGameAt = input.playerRows
     .map(startedAt)
     .filter(Boolean)
@@ -336,7 +382,11 @@ export function buildPlayerAnalysis(input: {
     supplementalGames: input.supplementalGames,
     overallUsable,
     samePickUsable,
+    roleUsable,
+    roleBenchmarkEligible,
+    hasCombatClassification: Boolean(combatClassification),
     expanded: input.expandedBenchmark,
+    roleExpanded: Boolean(input.expandedRoleBenchmark),
     mainPickGames: mainPickPlayerGames.length,
     excludedMetrics: metrics.filter((metric) => metric.comparison_status !== "available")
   });
@@ -360,6 +410,21 @@ export function buildPlayerAnalysis(input: {
       confidence: analysisConfidence
     },
     pick_profile: picks,
+    combat_context: combatClassification ? {
+      score_profile: combatClassification.scoreProfile,
+      label: combatScoreProfileLabel(combatClassification.scoreProfile),
+      range_profile: combatClassification.rangeProfile,
+      primary_function: combatClassification.primaryFunction,
+      secondary_function: combatClassification.secondaryFunction,
+      classification_confidence: combatClassification.confidence,
+      review_status: combatClassification.reviewStatus,
+      classification_version: combatClassification.classificationVersion,
+      benchmark_eligible: roleBenchmarkEligible,
+      metric_weights: combatMetricWeights(combatClassification.scoreProfile),
+      reference_type: metrics.find((metric) =>
+        metricDefinition(metric.id).dimension === "combat" && metric.reference_type
+      )?.reference_type ?? null
+    } : null,
     dimensions,
     strengths,
     improvement_priorities: improvementPriorities,
@@ -372,10 +437,15 @@ export function buildPlayerAnalysis(input: {
       overall_players: overall.samplePlayers,
       same_pick_games: samePick.sampleGames,
       same_pick_players: samePick.samplePlayers,
+      role_games: role.sampleGames,
+      role_players: role.samplePlayers,
       minimum_overall_games: PLAYER_ANALYSIS_MIN_OVERALL_GAMES,
       minimum_overall_players: PLAYER_ANALYSIS_MIN_OVERALL_PLAYERS,
       minimum_same_pick_games: PLAYER_ANALYSIS_MIN_SAME_PICK_GAMES,
-      minimum_same_pick_players: PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS
+      minimum_same_pick_players: PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS,
+      minimum_role_games: PLAYER_ANALYSIS_MIN_ROLE_GAMES,
+      minimum_role_players: PLAYER_ANALYSIS_MIN_ROLE_PLAYERS,
+      minimum_combat_peer_games: PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES
     },
     caveats,
     generated_at: input.generatedAt ?? new Date().toISOString(),
@@ -392,8 +462,12 @@ function aggregateNormalizedGames(games: NormalizedGame[]) {
     METRICS.map(({ id, unit }) => [
       id,
       unit === "per_minute"
-        ? weightedMean(games.map((game) => ({ value: game.metrics[id], weight: game.playTimeMinutes })))
-        : mean(games.map((game) => game.metrics[id]))
+        ? weightedMean(
+          games
+            .filter((game) => metricAvailable(game, id))
+            .map((game) => ({ value: game.metrics[id], weight: game.playTimeMinutes }))
+        )
+        : mean(games.filter((game) => metricAvailable(game, id)).map((game) => game.metrics[id]))
     ])
   ) as Record<PlayerAnalysisMetricId, number>;
   values.rank_stability = standardDeviation(games.map((game) => game.gameRank));
@@ -411,13 +485,24 @@ function mostPlayedNormalizedPick(games: NormalizedGame[]) {
   return { characterCode, weaponCode };
 }
 
-function buildDimensions(metrics: PlayerAnalysisMetric[]): PlayerAnalysisDimension[] {
+function buildDimensions(
+  metrics: PlayerAnalysisMetric[],
+  combatProfile: CombatScoreProfile | null
+): PlayerAnalysisDimension[] {
   return (Object.keys(DIMENSION_LABELS) as PlayerAnalysisDimensionKey[]).map((key) => {
     const dimensionMetrics = metrics.filter((metric) => metricDefinition(metric.id).dimension === key);
-    const scored = dimensionMetrics.filter((metric) => metric.relative_score !== null);
-    const totalWeight = scored.reduce((sum, metric) => sum + metricDefinition(metric.id).weight, 0);
+    const scored = dimensionMetrics.filter((metric) =>
+      metric.relative_score !== null && !metricDefinition(metric.id).supplementaryOnly
+    );
+    const totalWeight = scored.reduce(
+      (sum, metric) => sum + analysisMetricWeight(metric.id, combatProfile),
+      0
+    );
     const score = totalWeight
-      ? scored.reduce((sum, metric) => sum + Number(metric.relative_score) * metricDefinition(metric.id).weight, 0) / totalWeight
+      ? scored.reduce(
+        (sum, metric) => sum + Number(metric.relative_score) * analysisMetricWeight(metric.id, combatProfile),
+        0
+      ) / totalWeight
       : null;
     return {
       key,
@@ -429,6 +514,13 @@ function buildDimensions(metrics: PlayerAnalysisMetric[]): PlayerAnalysisDimensi
       metrics: dimensionMetrics.map(roundMetric)
     };
   });
+}
+
+function analysisMetricWeight(id: PlayerAnalysisMetricId, combatProfile: CombatScoreProfile | null) {
+  const definition = metricDefinition(id);
+  if (definition.dimension !== "combat") return definition.weight;
+  const weights = combatMetricWeights(combatProfile);
+  return id in weights ? weights[id as keyof typeof weights] : definition.weight;
 }
 
 function buildPickProfile(games: NormalizedGame[], names: Map<number, string>) {
@@ -460,6 +552,7 @@ function buildPickProfile(games: NormalizedGame[], names: Map<number, string>) {
 function buildStrengths(metrics: PlayerAnalysisMetric[]): PlayerAnalysisInsight[] {
   return metrics
     .filter((metric) =>
+      !metricDefinition(metric.id).supplementaryOnly &&
       metric.relative_score !== null &&
       Number(metric.relative_score) >= 65 &&
       metric.confidence !== "low"
@@ -475,15 +568,20 @@ function buildStrengths(metrics: PlayerAnalysisMetric[]): PlayerAnalysisInsight[
 
 function buildImprovementPriorities(
   metrics: PlayerAnalysisMetric[],
-  benchmarks: { overall: BenchmarkStats; samePick: BenchmarkStats }
+  benchmarks: { overall: BenchmarkStats; samePick: BenchmarkStats; role: BenchmarkStats }
 ): PlayerAnalysisInsight[] {
   return metrics
     .filter((metric) => {
-      if (!metricDefinition(metric.id).actionable ||
+      if (metricDefinition(metric.id).supplementaryOnly ||
+          !metricDefinition(metric.id).actionable ||
           metric.relative_score === null ||
           metric.relative_score >= 35 ||
           metric.confidence === "low") return false;
-      const benchmark = metric.reference_type === "same_pick" ? benchmarks.samePick : benchmarks.overall;
+      const benchmark = metric.reference_type === "same_pick"
+        ? benchmarks.samePick
+        : metric.reference_type === "role"
+          ? benchmarks.role
+          : benchmarks.overall;
       const stats = benchmark.metrics[metric.id] ?? EMPTY_METRIC_STATS;
       const orientation = metric.direction === "higher" ? 1 : -1;
       return (stats.top3Mean - stats.mean) * orientation > Math.max(stats.stddev * 0.1, 0.0001);
@@ -502,18 +600,31 @@ function buildCaveats(input: {
   supplementalGames: number;
   overallUsable: boolean;
   samePickUsable: boolean;
+  roleUsable: boolean;
+  roleBenchmarkEligible: boolean;
+  hasCombatClassification: boolean;
   expanded: boolean;
+  roleExpanded: boolean;
   mainPickGames: number;
   excludedMetrics: PlayerAnalysisMetric[];
 }) {
   const caveats = [
     "운영 스타일은 공식 API의 경기 종료 지표를 바탕으로 한 추정이며 실제 이동·교전 타임라인을 재구성하지 않습니다.",
+    `전투 백분위는 같은 비교군에서 최소 ${PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES}경기를 보유한 플레이어만 사용합니다.`,
     "상대 점수는 비슷한 MMR대의 백분위 기반 참고 지표이며, 이후 MMR 상승을 예측하는 모델 정확도로 검증된 값은 아닙니다."
   ];
   if (input.games < 10) caveats.push("분석 경기 수가 10판 미만이라 개인 성향 판단의 신뢰도가 낮습니다.");
   if (input.supplementalGames > 0) caveats.push(`현재 패치 표본을 보완하기 위해 시즌 경기 ${input.supplementalGames}판을 포함했습니다.`);
-  if (!input.samePickUsable && input.overallUsable) caveats.push(
-    `같은 실험체·무기 표본이 ${PLAYER_ANALYSIS_MIN_SAME_PICK_GAMES}경기·${PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS}명 기준에 미달해 역할 의존 지표는 제외하고 나머지는 비슷한 MMR대 전체와 비교했습니다.`
+  if (!input.samePickUsable && input.roleUsable) caveats.push(
+    `같은 실험체·무기 표본이 기준에 미달해 전투는 같은 역할군, 나머지 영역은 비슷한 MMR대와 비교했습니다.`
+  );
+  if (!input.samePickUsable && input.hasCombatClassification && !input.roleUsable) caveats.push(
+    input.roleBenchmarkEligible
+      ? `같은 역할군 표본이 ${PLAYER_ANALYSIS_MIN_ROLE_GAMES}경기·${PLAYER_ANALYSIS_MIN_ROLE_PLAYERS}명 기준에 미달해 전투 점수를 보류했습니다.`
+      : "주력 픽 역할 분류가 검토 대상이라 같은 픽 표본이 부족할 때 전투 점수를 보류합니다."
+  );
+  if (!input.samePickUsable && !input.hasCombatClassification && input.overallUsable) caveats.push(
+    "역할군 분류 데이터가 없어 전투를 포함한 지표를 비슷한 MMR대 전체와 비교했습니다."
   );
   if (input.mainPickGames < PLAYER_ANALYSIS_MIN_PLAYER_PICK_GAMES) caveats.push(
     `주력 픽 개인 기록이 ${PLAYER_ANALYSIS_MIN_PLAYER_PICK_GAMES}판 미만이라 같은 픽 비교를 적용하지 않았습니다.`
@@ -525,6 +636,7 @@ function buildCaveats(input: {
     `순위 변동성은 플레이어별 최소 ${PLAYER_ANALYSIS_MIN_STABILITY_GAMES}경기가 확보된 비교 플레이어가 충분할 때만 점수에 포함합니다.`
   );
   if (input.expanded) caveats.push("같은 픽 표본을 확보하기 위해 인접 MMR 구간까지 비교 범위를 넓혔습니다.");
+  if (input.roleExpanded) caveats.push("같은 역할군 표본을 확보하기 위해 인접 MMR 구간까지 비교 범위를 넓혔습니다.");
   return caveats;
 }
 
@@ -542,15 +654,19 @@ function fallbackAnalysisSummary(
 
 function metricBenchmarkUsable(
   stats: BenchmarkMetricStats,
-  type: "overall" | "same_pick",
+  type: "overall" | "same_pick" | "role",
   definition: MetricDefinition
 ) {
   const minimumGames = type === "same_pick"
     ? PLAYER_ANALYSIS_MIN_SAME_PICK_GAMES
-    : PLAYER_ANALYSIS_MIN_OVERALL_GAMES;
+    : type === "role"
+      ? PLAYER_ANALYSIS_MIN_ROLE_GAMES
+      : PLAYER_ANALYSIS_MIN_OVERALL_GAMES;
   const baseMinimumPlayers = type === "same_pick"
     ? PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS
-    : PLAYER_ANALYSIS_MIN_OVERALL_PLAYERS;
+    : type === "role"
+      ? PLAYER_ANALYSIS_MIN_ROLE_PLAYERS
+      : PLAYER_ANALYSIS_MIN_OVERALL_PLAYERS;
   const minimumPlayers = definition.id === "rank_stability"
     ? Math.max(baseMinimumPlayers, PLAYER_ANALYSIS_MIN_STABILITY_PLAYERS)
     : baseMinimumPlayers;
@@ -572,7 +688,12 @@ function metricComparisonStatus(input: {
   if (!input.playerHistoryEnough) return "insufficient_player_games";
   if (input.definition.requiresSamePick && !input.playerSamePickUsable) return "insufficient_player_games";
   if (input.definition.requiresSamePick && !input.reference) return "same_pick_required";
-  if (input.reference) return "available";
+  if (input.reference) {
+    if (input.definition.ignoreIfBaselineZero && Math.abs(input.reference.mean) < 0.1) {
+      return "not_applicable";
+    }
+    return "available";
+  }
   if (input.definition.minimumPeerGames && input.overallUsable) return "insufficient_peer_history";
   return "insufficient_cohort";
 }
@@ -583,7 +704,8 @@ function comparisonNote(status: PlayerAnalysisMetric["comparison_status"]) {
     insufficient_cohort: "비교 경기와 플레이어 표본이 부족합니다.",
     same_pick_required: "역할 차이를 줄이기 위해 같은 실험체·무기 표본이 있을 때만 비교합니다.",
     insufficient_player_games: "개인 경기 수가 지표 계산 기준에 미달합니다.",
-    insufficient_peer_history: "여러 경기를 보유한 비교 플레이어가 부족합니다."
+    insufficient_peer_history: "여러 경기를 보유한 비교 플레이어가 부족합니다.",
+    not_applicable: "이 실험체는 해당 지표가 유효하지 않아 평가에서 제외합니다."
   };
   return notes[status];
 }
@@ -664,8 +786,7 @@ function adviceForMetric(id: PlayerAnalysisMetricId) {
     monster_damage_per_minute: "교전이 없는 시간에 오브젝트와 야생동물에 투자하는 비율을 확인해 보세요.",
     weapon_level_per_minute: "초중반 숙련도 성장 속도가 끊기는 구간을 최근 경기에서 찾아보세요.",
     credits_per_minute: "야생동물·오브젝트·교전으로 이어지는 크레딧 수급 동선을 점검해 보세요.",
-    support_per_minute: "같은 픽 이용자보다 아군 회복·보호 기여가 낮은 경기의 스킬 사용 시점을 확인해 보세요.",
-    vision_actions_per_minute: "오브젝트 전 카메라와 보안 콘솔 사용을 습관화할 수 있는지 점검해 보세요."
+    view_contribution_per_minute: "오브젝트 전 시야 확보와 적 시야 제거 활동이 충분했는지 최근 경기를 점검해 보세요."
   };
   return advice[id] ?? "최근 경기에서 이 지표가 낮아지는 장면을 우선 확인해 보세요.";
 }
@@ -680,6 +801,7 @@ function roundMetric(metric: PlayerAnalysisMetric): PlayerAnalysisMetric {
     value: round(metric.value, metric.unit === "percent" ? 4 : 2),
     cohort_mean: metric.cohort_mean === null ? null : round(metric.cohort_mean, metric.unit === "percent" ? 4 : 2),
     same_pick_mean: metric.same_pick_mean === null ? null : round(metric.same_pick_mean, metric.unit === "percent" ? 4 : 2),
+    role_mean: metric.role_mean === null ? null : round(metric.role_mean, metric.unit === "percent" ? 4 : 2),
     reference_mean: metric.reference_mean === null ? null : round(metric.reference_mean, metric.unit === "percent" ? 4 : 2),
     reference_value: metric.reference_value === null ? null : round(metric.reference_value, metric.unit === "percent" ? 4 : 2)
   };
@@ -713,6 +835,36 @@ function numeric(row: AnalysisRow, ...keys: string[]) {
     }
   }
   return 0;
+}
+
+function viewContribution(row: AnalysisRow) {
+  if (row.view_contribution !== undefined || row.viewContribution !== undefined) {
+    return numeric(row, "view_contribution", "viewContribution");
+  }
+  const equipment = row.equipment;
+  if (!equipment || typeof equipment !== "object" || Array.isArray(equipment)) return 0;
+  const analysis = (equipment as AnalysisRow).__analysis;
+  if (!analysis || typeof analysis !== "object" || Array.isArray(analysis)) return 0;
+  return numeric(analysis as AnalysisRow, "viewContribution");
+}
+
+function hasViewContribution(row: AnalysisRow) {
+  if (row.view_contribution !== undefined && row.view_contribution !== null) return true;
+  if (row.viewContribution !== undefined && row.viewContribution !== null) return true;
+  const equipment = row.equipment;
+  if (!equipment || typeof equipment !== "object" || Array.isArray(equipment)) return false;
+  const analysis = (equipment as AnalysisRow).__analysis;
+  return Boolean(
+    analysis &&
+    typeof analysis === "object" &&
+    !Array.isArray(analysis) &&
+    (analysis as AnalysisRow).viewContribution !== undefined &&
+    (analysis as AnalysisRow).viewContribution !== null
+  );
+}
+
+function metricAvailable(game: NormalizedGame, id: PlayerAnalysisMetricId) {
+  return id !== "view_contribution_per_minute" || game.viewContributionAvailable;
 }
 
 function mean(values: number[]) {

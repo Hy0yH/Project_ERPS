@@ -41,14 +41,14 @@ async function erFetch<T>(path: string): Promise<T> {
   let lastStatus = "";
   for (let attempt = 0; attempt <= ER_MAX_RETRIES; attempt += 1) {
     if (attempt > 0) {
-      await delay(ER_REQUEST_DELAY_MS * attempt);
+      await delay(getBackoffMs(attempt));
     }
 
     const response = await scheduledFetch(`${ER_API_BASE}${path}`, key);
 
     if (response.status === 429 && attempt < ER_MAX_RETRIES) {
       const retryAfter = Number(response.headers.get("retry-after"));
-      await delay(Number.isFinite(retryAfter) ? retryAfter * 1000 : ER_REQUEST_DELAY_MS * (attempt + 1));
+      await delay(Number.isFinite(retryAfter) ? retryAfter * 1000 : getBackoffMs(attempt + 1));
       lastStatus = `${response.status} ${response.statusText}`;
       continue;
     }
@@ -73,12 +73,12 @@ async function erFetchEnvelope<T>(path: string): Promise<ErEnvelope<T>> {
 
   let lastStatus = "";
   for (let attempt = 0; attempt <= ER_MAX_RETRIES; attempt += 1) {
-    if (attempt > 0) await delay(ER_REQUEST_DELAY_MS * attempt);
+    if (attempt > 0) await delay(getBackoffMs(attempt));
 
     const response = await scheduledFetch(`${ER_API_BASE}${path}`, key);
     if (response.status === 429 && attempt < ER_MAX_RETRIES) {
       const retryAfter = Number(response.headers.get("retry-after"));
-      await delay(Number.isFinite(retryAfter) ? retryAfter * 1000 : ER_REQUEST_DELAY_MS);
+      await delay(Number.isFinite(retryAfter) ? retryAfter * 1000 : getBackoffMs(attempt + 1));
       lastStatus = `${response.status} ${response.statusText}`;
       continue;
     }
@@ -257,4 +257,10 @@ function scheduledFetch(url: string, key: string) {
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getBackoffMs(attempt: number) {
+  const baseDelay = ER_REQUEST_DELAY_MS * Math.pow(2, attempt - 1);
+  const jitter = Math.random() * 0.2 * baseDelay;
+  return baseDelay + jitter;
 }

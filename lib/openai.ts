@@ -144,7 +144,7 @@ export async function explainPlayerAnalysis(analysis: PlayerAnalysis): Promise<P
   if (!process.env.OPENAI_API_KEY) return analysis;
 
   const allowedMetricIds = new Set(
-    analysis.dimensions.flatMap((dimension) =>
+    analysis.dimensions.filter((dimension) => dimension.key !== "team").flatMap((dimension) =>
       dimension.metrics
         .filter((metric) => metric.comparison_status === "available")
         .map((metric) => metric.id)
@@ -160,7 +160,8 @@ export async function explainPlayerAnalysis(analysis: PlayerAnalysis): Promise<P
       input: JSON.stringify({
         confidence: analysis.scope.confidence,
         pickProfile: analysis.pick_profile,
-        metrics: analysis.dimensions.flatMap((dimension) =>
+        combatContext: analysis.combat_context,
+        metrics: analysis.dimensions.filter((dimension) => dimension.key !== "team").flatMap((dimension) =>
           dimension.metrics
             .filter((metric) => metric.comparison_status === "available")
             .map((metric) => ({
@@ -185,7 +186,7 @@ export async function explainPlayerAnalysis(analysis: PlayerAnalysis): Promise<P
           improvements: [{ title: "string", detail: "string", metricIds: ["metric_id"] }]
         }
       })
-    });
+    }, { timeout: 5000 });
     const parsed = playerAnalysisExplanationSchema.parse(JSON.parse(response.output_text));
     const strengths = validateAnalysisInsights(parsed.strengths, allowedMetricIds);
     const improvements = validateAnalysisInsights(parsed.improvements, allowedMetricIds);

@@ -62,6 +62,7 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
     ? "MMR 표본 부족"
     : `${analysis.benchmark_coverage.mmr_bucket_start.toLocaleString()}–${Number(analysis.benchmark_coverage.mmr_bucket_end).toLocaleString()} MMR`;
   const radarAxes = buildRadarAxes(analysis);
+  const supportDimension = analysis.dimensions.find((dimension) => dimension.key === "team") ?? null;
 
   return (
     <div className="player-analysis stack">
@@ -72,6 +73,9 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
               신뢰도 {confidenceLabel(analysis.scope.confidence)}
             </span>
             <span className="badge">{benchmarkLabel}</span>
+            {analysis.combat_context ? (
+              <span className="badge">전투 역할 · {analysis.combat_context.label}</span>
+            ) : null}
             {analysis.cache_status === "stale" ? <span className="badge warn">이전 결과</span> : null}
           </div>
           <h2>플레이스타일 진단</h2>
@@ -130,15 +134,18 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
             <span className="page-kicker">RELATIVE PERFORMANCE</span>
             <h2>비슷한 MMR대와 비교</h2>
           </div>
-          <span className="muted">같은 실험체·무기 표본을 우선 적용</span>
+          <span className="muted">같은 실험체·무기 → 같은 역할군 → 유사 MMR 순으로 적용</span>
         </div>
         <div className="analysis-dimension-grid">
-          {analysis.dimensions.map((dimension) => (
+          {analysis.dimensions.filter((dimension) => dimension.key !== "team").map((dimension, index) => (
             <article className="analysis-dimension-card" key={dimension.key}>
               <header>
                 <div>
                   <span className="muted">{confidenceLabel(dimension.confidence)} 신뢰도</span>
                   <h3>{dimension.label}</h3>
+                  {dimension.key === "combat" && analysis.combat_context ? (
+                    <span className="muted">{analysis.combat_context.label}</span>
+                  ) : null}
                 </div>
                 <strong>{dimension.score === null ? "-" : Math.round(dimension.score)}</strong>
               </header>
@@ -150,7 +157,12 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
                 aria-valuemax={100}
                 aria-valuenow={dimension.score === null ? undefined : Math.round(dimension.score)}
               >
-                <span style={{ width: `${dimension.score ?? 0}%` }} />
+                <span
+                  style={{
+                    width: `${dimension.score ?? 0}%`,
+                    animationDelay: `${120 + index * 70}ms`
+                  }}
+                />
               </div>
               <div className="analysis-metric-list">
                 {dimension.metrics.map((metric) => <MetricRow metric={metric} key={metric.id} />)}
@@ -158,6 +170,13 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
             </article>
           ))}
         </div>
+        {supportDimension ? (
+          <SupportActivityCard
+            dimension={supportDimension}
+            samePickGames={analysis.benchmark_coverage.same_pick_games}
+            samePickPlayers={analysis.benchmark_coverage.same_pick_players}
+          />
+        ) : null}
       </section>
 
       <section className="analysis-insights-grid">
@@ -204,7 +223,7 @@ type RadarAxis = {
   key: string;
   label: string;
   score: number | null;
-  benchmarkSource: "같은 픽" | "유사 MMR" | "혼합 기준" | "표본 부족";
+  benchmarkSource: "같은 픽" | "같은 역할군" | "유사 MMR" | "혼합 기준" | "표본 부족";
   unavailableDetail: string | null;
   confidence: PlayerAnalysis["scope"]["confidence"];
   availableMetrics: number;
@@ -242,7 +261,7 @@ function PlaystyleMap({ axes }: { axes: RadarAxis[] }) {
 
         <div className="analysis-playstyle-score-wrap">
           <div className="analysis-playstyle-score-list" aria-label="영역별 플레이어 상대 점수">
-            {axes.map((axis) => (
+            {axes.map((axis, index) => (
               <div
                 className={`analysis-playstyle-score-row${axis.score === null ? " is-unavailable" : ""}`}
                 key={axis.key}
@@ -266,7 +285,12 @@ function PlaystyleMap({ axes }: { axes: RadarAxis[] }) {
                     aria-valuemax={100}
                     aria-valuenow={Math.round(axis.score)}
                   >
-                    <span style={{ width: `${Math.max(0, Math.min(100, axis.score))}%` }} />
+                    <span
+                      style={{
+                        width: `${Math.max(0, Math.min(100, axis.score))}%`,
+                        animationDelay: `${160 + index * 80}ms`
+                      }}
+                    />
                   </div>
                 )}
                 <ScoreStatus axis={axis} />
@@ -365,16 +389,18 @@ function ScoreStatus({ axis }: { axis: RadarAxis }) {
 }
 
 function buildRadarAxes(analysis: PlayerAnalysis): RadarAxis[] {
-  return analysis.dimensions.map((dimension) => {
+  return analysis.dimensions.filter((dimension) => dimension.key !== "team").map((dimension) => {
     const sources = new Set(
       dimension.metrics
         .map((metric) => metric.reference_type)
-        .filter((source): source is "same_pick" | "mmr" => source !== null)
+        .filter((source): source is "same_pick" | "role" | "mmr" => source !== null)
     );
     const source = sources.size > 1
       ? "혼합 기준"
       : sources.has("same_pick")
         ? "같은 픽"
+        : sources.has("role")
+          ? "같은 역할군"
         : sources.has("mmr")
           ? "유사 MMR"
           : "표본 부족";
@@ -384,7 +410,7 @@ function buildRadarAxes(analysis: PlayerAnalysis): RadarAxis[] {
       score: dimension.score,
       benchmarkSource: source,
       unavailableDetail: dimension.score === null
-        ? dimension.key === "team" && analysis.benchmark_coverage.same_pick_games > 0
+        ? (dimension.key as string) === "team" && analysis.benchmark_coverage.same_pick_games > 0
           ? `같은 픽 ${analysis.benchmark_coverage.same_pick_games}경기·${analysis.benchmark_coverage.same_pick_players}명`
           : dimension.metrics.find((metric) => metric.comparison_note)?.comparison_note ?? "비교 표본 부족"
         : null,
@@ -393,6 +419,48 @@ function buildRadarAxes(analysis: PlayerAnalysis): RadarAxis[] {
       totalMetrics: dimension.total_metrics
     };
   });
+}
+
+function SupportActivityCard({
+  dimension,
+  samePickGames,
+  samePickPlayers
+}: {
+  dimension: PlayerAnalysis["dimensions"][number];
+  samePickGames: number;
+  samePickPlayers: number;
+}) {
+  const metric = dimension.metrics.find((item) => item.id === "support_per_minute");
+  if (!metric) return null;
+  const comparisonAvailable = metric.comparison_status === "available" && metric.reference_value !== null;
+
+  return (
+    <article className="analysis-support-card" aria-labelledby="support-activity-title">
+      <div className="analysis-support-copy">
+        <span className="page-kicker">SUPPORT ACTIVITY</span>
+        <h3 id="support-activity-title">지원 활동</h3>
+        <p>회복·보호는 실험체 역할의 영향을 크게 받으므로 플레이스타일 점수와 강점·개선점에는 반영하지 않습니다.</p>
+      </div>
+      <div className="analysis-support-value">
+        <span>분당 회복·보호</span>
+        <strong>{formatMetric(metric.value, metric.unit)}</strong>
+      </div>
+      <div className="analysis-support-reference">
+        {comparisonAvailable ? (
+          <>
+            <strong>같은 픽 평균 {formatMetric(Number(metric.reference_value), metric.unit)}</strong>
+            <span>{formatMetricDifference(metric)} · 비교 {metric.sample_games}경기·{metric.sample_players}명</span>
+          </>
+        ) : (
+          <>
+            <strong>참고 정보</strong>
+            <span>{metric.comparison_note ?? "같은 픽 비교 표본이 부족합니다."}</span>
+            {samePickGames > 0 ? <span>수집 표본 {samePickGames}경기·{samePickPlayers}명</span> : null}
+          </>
+        )}
+      </div>
+    </article>
+  );
 }
 
 function scoredRadarSegments(
@@ -452,18 +520,22 @@ function labelAnchor(x: number, centerX: number): "start" | "middle" | "end" {
 }
 
 function MetricRow({ metric }: { metric: PlayerAnalysisMetric }) {
-  const referenceLabel = metric.reference_type === "same_pick" ? "같은 픽 기준" : "MMR 기준";
+  const referenceLabel = metric.reference_type === "same_pick"
+    ? "같은 픽 기준"
+    : metric.reference_type === "role"
+      ? "같은 역할군 기준"
+      : "MMR 기준";
   const comparisonValue = metric.delta_percent ?? metric.delta_absolute;
   return (
     <div className="analysis-metric-row">
       <div>
         <strong>{metric.label}</strong>
-        {metric.comparison_status === "available" && metric.reference_value !== null ? (
-          <span>
-            내 수치 {formatMetric(metric.value, metric.unit)} · {referenceLabel} {formatMetric(metric.reference_value, metric.unit)}
-            {` · 개인 ${metric.player_games}판 / 비교 ${metric.sample_players}명`}
-          </span>
-        ) : <span>{metric.comparison_note ?? "비교 기준을 충족하지 못했습니다."}</span>}
+        <span>
+          내 수치 {formatMetric(metric.value, metric.unit)}
+          {metric.comparison_status === "available" && metric.reference_value !== null
+            ? ` · ${referenceLabel} ${formatMetric(metric.reference_value, metric.unit)} · 개인 ${metric.player_games}판 / 비교 ${metric.sample_players}명`
+            : ` · ${metric.comparison_note ?? "비교 기준을 충족하지 못했습니다."}`}
+        </span>
       </div>
       <span className={comparisonValue === null ? "muted" : comparisonValue >= 0 ? "metric-up" : "metric-down"}>
         {formatMetricDifference(metric)}
@@ -506,7 +578,6 @@ function InsightGroup({
             <article key={`${item.title}:${item.metric_ids.join(":")}`}>
               <strong>{item.title}</strong>
               <p>{item.detail}</p>
-              <span>{item.metric_ids.join(" · ")}</span>
             </article>
           ))}
         </div>

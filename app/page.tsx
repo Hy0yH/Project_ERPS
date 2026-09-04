@@ -9,6 +9,8 @@ import {
   displayPercent
 } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const [meta, comps, compCount, snapshotSummary] = await Promise.all([
     safeArray(getCharacterMeta()),
@@ -38,22 +40,18 @@ export default async function HomePage() {
 
       <section className="metrics-strip">
         <div className="metric metric-cell">
-          <span className="metric-index">01</span>
           <span className="muted">기준 패치</span>
           <strong>{snapshotSummary?.patch_key ? `v${snapshotSummary.patch_key}` : "-"}</strong>
         </div>
         <div className="metric metric-cell">
-          <span className="metric-index">02</span>
           <span className="muted">캐릭터 표본</span>
           <strong>{(snapshotSummary?.sample_players ?? meta.reduce((sum, item) => sum + item.games, 0)).toLocaleString()}</strong>
         </div>
         <div className="metric metric-cell">
-          <span className="metric-index">03</span>
           <span className="muted">활성 티어 집계</span>
           <strong>{meta.length.toLocaleString()}</strong>
         </div>
         <div className="metric metric-cell">
-          <span className="metric-index">04</span>
           <span className="muted">조합 집계</span>
           <strong>{(snapshotSummary?.comp_count ?? compCount).toLocaleString()}</strong>
         </div>
@@ -66,7 +64,7 @@ export default async function HomePage() {
             {topMeta.length ? topMeta.map((item, index) => (
               <Link
                 className="ranking-row"
-                href={`/characters/${item.character_code}`}
+                href={`/characters/${item.character_code}?weapon=${item.weapon_code}`}
                 key={`${item.character_code}:${item.weapon_code}`}
               >
                 <span className="rank-number">{index + 1}</span>

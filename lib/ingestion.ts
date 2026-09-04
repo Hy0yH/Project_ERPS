@@ -31,12 +31,19 @@ import {
 } from "@/lib/rank-scopes";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { confidenceScore, isTop3, ratio } from "@/lib/stats";
-import { buildBenchmarkStats, mmrBucketStart } from "@/lib/player-analysis";
+import {
+  PLAYER_ANALYSIS_BASE_VERSION,
+  PLAYER_ANALYSIS_VERSION,
+  buildBenchmarkStats,
+  mmrBucketStart
+} from "@/lib/player-analysis";
+import { classifyCharacterWeapon } from "@/lib/combat-archetypes";
 import type { PatchVersion, PlayerDataScope } from "@/lib/types";
 import {
   characterWeaponKey,
   isCharacterWeapon,
-  parseCharacterWeaponKey
+  parseCharacterWeaponKey,
+  weaponCodeForType
 } from "@/lib/weapons";
 
 const RANKED_SQUAD_MODE = 3;
@@ -132,6 +139,9 @@ export async function syncCharacters() {
       name_ko: l10n[`Character/Name/${code}`] ?? String(item.name ?? item.nameKo ?? code),
       name_en: String(item.name ?? item.nameEn ?? ""),
       role: String(item.role ?? ""),
+      official_archetype_primary: nullableMetadataString(item.charArcheType1),
+      official_archetype_secondary: nullableMetadataString(item.charArcheType2),
+      official_range_type: nullableMetadataString(item.weaponRangeType),
       weapon_types: masteryByCharacter.get(code) ?? [],
       is_active: true
     };
@@ -140,7 +150,68 @@ export async function syncCharacters() {
     onConflict: "character_code"
   });
   if (error) throw error;
+  await syncCharacterWeaponArchetypes(rows);
   return rows.length;
+}
+
+async function syncCharacterWeaponArchetypes(rows: Array<{
+  character_code: number;
+  official_archetype_primary: string | null;
+  official_archetype_secondary: string | null;
+  official_range_type: string | null;
+  weapon_types: string[];
+}>) {
+  const supabase = getSupabaseAdmin();
+  const { data: reviewed, error: reviewedError } = await supabase
+    .from("character_weapon_archetypes")
+    .select("character_code, weapon_code")
+    .eq("review_status", "reviewed");
+  if (reviewedError) throw reviewedError;
+  const reviewedKeys = new Set(
+    (reviewed ?? []).map((row) => `${Number(row.character_code)}:${Number(row.weapon_code)}`)
+  );
+  const classifications = rows.flatMap((character) => {
+    const weapons = character.weapon_types.length ? character.weapon_types : [null];
+    return weapons.flatMap((currentWeaponType) => {
+      const currentWeaponCode = weaponCodeForType(currentWeaponType) ?? 0;
+      if (reviewedKeys.has(`${character.character_code}:${currentWeaponCode}`)) return [];
+      const classification = classifyCharacterWeapon({
+        characterCode: character.character_code,
+        weaponCode: currentWeaponCode,
+        weaponType: currentWeaponType,
+        officialPrimary: character.official_archetype_primary,
+        officialSecondary: character.official_archetype_secondary,
+        officialRangeType: character.official_range_type
+      });
+      return [{
+        character_code: character.character_code,
+        weapon_code: currentWeaponCode,
+        range_profile: classification.rangeProfile,
+        primary_function: classification.primaryFunction,
+        secondary_function: classification.secondaryFunction,
+        score_profile: classification.scoreProfile,
+        review_status: classification.reviewStatus,
+        confidence: classification.confidence,
+        classification_source: classification.reviewStatus === "reviewed"
+          ? "manual_review"
+          : "official_api_v2",
+        classification_version: classification.classificationVersion,
+        review_reason: classification.reviewReason,
+        evidence: {
+          official_primary: character.official_archetype_primary,
+          official_secondary: character.official_archetype_secondary,
+          official_range_type: character.official_range_type,
+          weapon_type: currentWeaponType
+        },
+        updated_at: new Date().toISOString()
+      }];
+    });
+  });
+  if (!classifications.length) return;
+  const { error } = await supabase.from("character_weapon_archetypes").upsert(classifications, {
+    onConflict: "character_code,weapon_code"
+  });
+  if (error) throw error;
 }
 
 export async function collectRankerMatches() {
@@ -390,12 +461,16 @@ export async function collectPlayerRecentMatches(
         continue;
       }
 
-      const detail = await fetchGame(gameId);
-      await saveGame(detail, {
-        identity: { userId, nickname: trimmedNickname },
-        patch: latestPatch
-      });
-      savedMatches += 1;
+      try {
+        const detail = await fetchGame(gameId);
+        await saveGame(detail, {
+          identity: { userId, nickname: trimmedNickname },
+          patch: latestPatch
+        });
+        savedMatches += 1;
+      } catch (error) {
+        console.error(`Failed to save game ${gameId} for recent matches:`, error);
+      }
 
       if (inspectedGames >= limit) {
         shouldStop = true;
@@ -475,23 +550,31 @@ export async function collectPlayerAnalysisMatches(
   const identity = { userId, nickname: trimmedNickname };
   let savedMatches = 0;
   for (const row of selectedRows) {
-    await saveGame(
-      { gamePlayers: [row] },
-      {
-        identity,
-        patch: activePatch
-      }
-    );
-    savedMatches += 1;
+    try {
+      await saveGame(
+        { gamePlayers: [row] },
+        {
+          identity,
+          patch: activePatch
+        }
+      );
+      savedMatches += 1;
+    } catch (error) {
+      console.error(`Failed to save partial game ${row.gameId ?? row.game_id} for analysis:`, error);
+    }
   }
 
   let enrichedPeerGames = 0;
   for (const row of selectedRows.slice(0, Math.max(0, peerGameLimit))) {
     const gameId = Number(row.gameId ?? row.game_id);
     if (!gameId || (await hasCompleteAnalysisGame(supabase, gameId))) continue;
-    const detail = await fetchGame(gameId);
-    await saveGame(detail, { identity, patch: activePatch });
-    enrichedPeerGames += 1;
+    try {
+      const detail = await fetchGame(gameId);
+      await saveGame(detail, { identity, patch: activePatch });
+      enrichedPeerGames += 1;
+    } catch (error) {
+      console.error(`Failed to enrich peer game ${gameId} for analysis:`, error);
+    }
   }
 
   const backgroundRows = selectedRows.slice(Math.max(0, peerGameLimit));
@@ -691,7 +774,7 @@ async function hasSavedGamePlayers(supabase: ReturnType<typeof getSupabaseAdmin>
     .from("match_players")
     .select("*", { count: "exact", head: true })
     .eq("game_id", gameId)
-    .gte("analysis_data_version", 1);
+    .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION);
   if (error) throw error;
   return Number(count ?? 0) >= 8;
 }
@@ -704,7 +787,7 @@ async function hasCompleteAnalysisGame(
     .from("match_players")
     .select("*", { count: "exact", head: true })
     .eq("game_id", gameId)
-    .gte("analysis_data_version", 1);
+    .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION);
   if (error) throw error;
   return Number(count ?? 0) >= 8;
 }
@@ -721,7 +804,7 @@ async function findCompleteAnalysisGameIds(
       .from("match_players")
       .select("game_id")
       .in("game_id", batch)
-      .gte("analysis_data_version", 1);
+      .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION);
     if (error) throw error;
     for (const row of data ?? []) {
       const gameId = Number(row.game_id);
@@ -988,7 +1071,7 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
     mmr_gain: Number(player.mmrGain ?? 0),
     mmr_after: Number(player.mmrAfter ?? 0),
     best_weapon: Number(player.bestWeapon ?? 0),
-    equipment: player.equipment ?? {},
+    equipment: equipmentWithAnalysisMetrics(player.equipment, player.viewContribution),
     character_level: Number(player.characterLevel ?? 0),
     player_deaths: Number(player.playerDeaths ?? 0),
     monster_kill: Number(player.monsterKill ?? 0),
@@ -1014,8 +1097,11 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
     total_spent_vf_credit: sumNumericArray(player.usedVFCredit),
     route_id_of_start: Number(player.routeIdOfStart ?? 0),
     place_of_start: Number(player.placeOfStart ?? 0),
-    analysis_data_version:
-      player.damageToPlayer !== undefined || player.playTime !== undefined ? 1 : 0
+    analysis_data_version: player.viewContribution !== undefined && player.playTime !== undefined
+      ? PLAYER_ANALYSIS_VERSION
+      : player.damageToPlayer !== undefined || player.playTime !== undefined
+        ? 1
+        : 0
   }));
 
   const identifiedPlayer = options.identity?.userId
@@ -1035,6 +1121,22 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
     onConflict: "game_id,user_num"
   });
   if (playersError) throw playersError;
+}
+
+function equipmentWithAnalysisMetrics(equipment: unknown, viewContribution: unknown) {
+  const base = equipment && typeof equipment === "object" && !Array.isArray(equipment)
+    ? equipment as Record<string, unknown>
+    : { items: equipment ?? {} };
+  const previousAnalysis = base.__analysis && typeof base.__analysis === "object" && !Array.isArray(base.__analysis)
+    ? base.__analysis as Record<string, unknown>
+    : {};
+  return {
+    ...base,
+    __analysis: {
+      ...previousAnalysis,
+      viewContribution: Number(viewContribution ?? 0)
+    }
+  };
 }
 
 export async function buildSnapshots(periodDays = 14) {
@@ -1147,7 +1249,7 @@ function buildMetricBenchmarkRows(
   periodEnd: string
 ) {
   const eligible = players.filter(
-    (player) => Number(player.analysis_data_version ?? 0) >= 1 && Number(player.mmr_after ?? 0) > 0
+    (player) => Number(player.analysis_data_version ?? 0) >= PLAYER_ANALYSIS_BASE_VERSION && Number(player.mmr_after ?? 0) > 0
   );
   const groups = new Map<string, { bucket: number; segmentKey: string; rows: any[] }>();
 
@@ -1460,4 +1562,10 @@ function characterWeaponTypes(item: Record<string, unknown>) {
   return [item.weapon1, item.weapon2, item.weapon3, item.weapon4]
     .filter((value): value is string => typeof value === "string" && value !== "None")
     .filter((value, index, values) => values.indexOf(value) === index);
+}
+
+function nullableMetadataString(value: unknown) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized && normalized !== "None" ? normalized : null;
 }

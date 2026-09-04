@@ -1,4 +1,5 @@
 import { DEFAULT_PERIOD_DAYS, ER_SEASON_ID } from "@/lib/env";
+import { getBundledPatchChanges, mergePatchChanges } from "@/lib/bundled-patch-changes";
 import { getActivePatch } from "@/lib/patch-version";
 import { DEFAULT_RANK_SCOPE, parseRankScope, sampleStatus, type RankScope } from "@/lib/rank-scopes";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -194,8 +195,9 @@ export async function getSnapshotSummary(
   };
 }
 
-export async function getPatchHistory(characterCode: number): Promise<PatchChange[]> {
-  if (!isSupabaseConfigured()) return [];
+export async function getPatchHistory(characterCode: number, weaponCode?: number): Promise<PatchChange[]> {
+  const bundled = getBundledPatchChanges(characterCode, weaponCode);
+  if (!isSupabaseConfigured()) return bundled;
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("character_patch_changes")
@@ -204,16 +206,17 @@ export async function getPatchHistory(characterCode: number): Promise<PatchChang
     .order("created_at", { ascending: false })
     .limit(30);
   if (error) throw error;
-  return (data ?? []) as PatchChange[];
+  return mergePatchChanges(bundled, (data ?? []) as PatchChange[]).slice(0, 30);
 }
 
-export async function getRecentPatchSummary(characterCode: number) {
-  const changes = await getPatchHistory(characterCode);
+export async function getRecentPatchSummary(characterCode: number, weaponCode?: number) {
+  const changes = await getPatchHistory(characterCode, weaponCode);
   return changes.slice(0, 2).map((change) => change.raw_change_text);
 }
 
 export async function getAllPatchChanges(): Promise<PatchChange[]> {
-  if (!isSupabaseConfigured()) return [];
+  const bundled = getBundledPatchChanges();
+  if (!isSupabaseConfigured()) return bundled;
   const supabase = getSupabaseAdmin();
   const rows: PatchChange[] = [];
 
@@ -228,7 +231,7 @@ export async function getAllPatchChanges(): Promise<PatchChange[]> {
     if (!data || data.length < PATCH_CHANGE_PAGE_SIZE) break;
   }
 
-  return rows;
+  return mergePatchChanges(bundled, rows);
 }
 
 export async function getPlayerSummary(

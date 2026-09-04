@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCharacterWeapon, weaponName, weaponType } from "@/lib/weapons";
+import { isCharacterWeapon, weaponCodeForType, weaponName, weaponType } from "@/lib/weapons";
 
 describe("weapon mastery mapping", () => {
   it("uses the official mastery codes after the reserved code 12", () => {
@@ -12,6 +12,7 @@ describe("weapon mastery mapping", () => {
 
   it("matches BattleUserResult codes to CharacterMastery values", () => {
     expect(weaponType(21)).toBe("Rapier");
+    expect(weaponCodeForType("Rapier")).toBe(21);
     expect(isCharacterWeapon(["Rapier", "TwoHandSword", "Spear"], 21)).toBe(true);
     expect(isCharacterWeapon(["Rapier", "TwoHandSword", "Spear"], 14)).toBe(false);
   });

@@ -58,7 +58,9 @@ export default async function CharactersPage({
                   )}
                 </td>
                 <td>
-                  <Link href={`/characters/${item.character_code}`}>{item.display_name}</Link>
+                  <Link href={`/characters/${item.character_code}?weapon=${item.weapon_code}`}>
+                    {item.display_name}
+                  </Link>
                 </td>
                 <td>{item.games.toLocaleString()}</td>
                 <td>{displayPercent(item.pick_rate)}</td>

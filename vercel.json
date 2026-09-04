@@ -1,12 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/collect-rankers",
-      "schedule": "0 */12 * * *"
-    },
-    {
-      "path": "/api/cron/build-snapshots",
-      "schedule": "20 */12 * * *"
-    }
-  ]
+  "$schema": "https://openapi.vercel.sh/vercel.json"
 }

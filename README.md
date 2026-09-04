@@ -86,7 +86,7 @@ Copy-Item .env.example .env.local
 | `PLAYER_ANALYSIS_CACHE_HOURS` | `6` | 분석 결과 캐시 시간 |
 | `PLAYER_ANALYSIS_ENABLED` | `true` | 플레이어 분석 기능 활성화 |
 
-`ER_SEASON_ID`와 `ER_TARGET_PATCH`는 서로 다른 번호 체계입니다. `.env.example`에는 현재 프로젝트 설정값인 시즌 `41`, 패치 키 `12.1.0`이 들어 있으므로 수집 전 공식 API 값과 일치하는지 확인해야 합니다.
+`ER_SEASON_ID`와 `ER_TARGET_PATCH`는 서로 다른 번호 체계입니다. `.env.example`에는 현재 프로젝트 설정값인 시즌 `41`, 패치 키 `12.2.0`이 들어 있으므로 수집 전 공식 API 값과 일치하는지 확인해야 합니다.
 
 프로덕션에서는 `ADMIN_TOKEN`과 `CRON_SECRET`을 반드시 비어 있지 않은 강한 값으로 설정하세요. 현재 인증 로직은 해당 환경 변수가 없으면 관련 엔드포인트의 토큰 검사를 생략합니다. `SUPABASE_SERVICE_ROLE_KEY`은 브라우저 코드에 노출하면 안 됩니다.
 
@@ -137,7 +137,18 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:3000/api/cron/build-snapsh
 
 처리되지 않은 큐는 다음 실행에서 이어집니다. 허용되지 않은 실험체·무기 숙련 조합은 스냅샷에서 제외되며, 실험체 메타는 전체·단일 티어·특정 티어 이상 범위로 생성됩니다. 2인/3인 조합은 미스릴 이상 플레이어가 포함된 완성 스쿼드를 기준으로 집계됩니다.
 
-`vercel.json`에는 두 배치 경로를 12시간 간격으로 실행하는 일정이 선언되어 있습니다. 배치 라우트는 현재 `POST` 전용이므로 배포 환경의 스케줄러도 위 메서드와 인증 헤더를 지원하도록 구성해야 합니다.
+배치 작업은 한 번에 오래 실행될 수 있으므로 Vercel Cron에는 등록하지 않습니다. 아래 Windows 예약 작업이 계속 Supabase 데이터를 갱신하며, Vercel에 배포된 웹사이트는 같은 Supabase 데이터를 읽습니다.
+
+## GitHub 연동 웹 배포
+
+이 앱은 서버 렌더링과 API 라우트를 사용하므로 정적 호스팅인 GitHub Pages가 아니라 Vercel에 GitHub 저장소를 연결해 배포합니다.
+
+1. Vercel의 **New Project**에서 `Hy0yH/Project_ERPS` 저장소를 가져옵니다.
+2. Framework Preset은 자동 감지된 `Next.js`를 사용하고 Root Directory는 저장소 루트로 둡니다.
+3. `.env.local`의 필수 변수를 Vercel Project Settings의 Environment Variables에 동일하게 등록합니다. `OPENAI_API_KEY`는 선택 사항입니다.
+4. Production Branch를 `main`으로 둔 채 배포합니다.
+
+연결 후에는 `main` 브랜치에 푸시할 때마다 프로덕션 웹사이트가 자동으로 다시 배포됩니다. `.env.local`과 `SUPABASE_SERVICE_ROLE_KEY` 같은 비밀값은 GitHub에 커밋하지 않습니다.
 
 ## Windows 로컬 자동 수집
 

@@ -1,18 +1,32 @@
 import { displayPercent, displayRank, getCharacterMeta, getPatchHistory, getTeamComps } from "@/lib/data";
+import {
+  patchChangeLabel,
+  patchChangeSections,
+  patchSourceUrl
+} from "@/lib/bundled-patch-changes";
 
 export default async function CharacterDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ code: string }>;
+  searchParams: Promise<{ weapon?: string }>;
 }) {
   const { code } = await params;
+  const { weapon } = await searchParams;
   const characterCode = Number(code);
-  const [meta, comps, patches] = await Promise.all([
+  const requestedWeaponCode = Number(weapon);
+  const [meta, comps] = await Promise.all([
     getCharacterMeta().catch(() => []),
-    getTeamComps([characterCode]).catch(() => []),
-    getPatchHistory(characterCode).catch(() => [])
+    getTeamComps([characterCode]).catch(() => [])
   ]);
-  const character = meta.find((item) => item.character_code === characterCode);
+  const character = meta.find((item) =>
+    item.character_code === characterCode &&
+    Number.isFinite(requestedWeaponCode) &&
+    requestedWeaponCode > 0 &&
+    item.weapon_code === requestedWeaponCode
+  ) ?? meta.find((item) => item.character_code === characterCode);
+  const patches = await getPatchHistory(characterCode, character?.weapon_code).catch(() => []);
 
   return (
     <>
@@ -69,15 +83,42 @@ export default async function CharacterDetailPage({
         </div>
         <div className="span-6 stack">
           <h2>패치 히스토리</h2>
-          {patches.map((patch, index) => (
-            <article className="item-card" key={`${patch.patch_version}-${index}`}>
-              <div className="split">
-                <strong>{patch.patch_version}</strong>
-                <span className="badge">{patch.change_type}</span>
-              </div>
-              <p>{patch.raw_change_text}</p>
-            </article>
-          ))}
+          {patches.map((patch, index) => {
+            const sourceUrl = patchSourceUrl(patch.patch_version);
+            return (
+              <article
+                className={`item-card patch-change-card patch-${patch.change_type}`}
+                key={`${patch.patch_version}-${index}`}
+              >
+                <div className="split">
+                  <strong>v{patch.patch_version}</strong>
+                  <span className={`badge patch-type patch-type-${patch.change_type}`}>
+                    {patchChangeLabel(patch.change_type)}
+                  </span>
+                </div>
+                <div className="patch-change-sections">
+                  {patchChangeSections(patch).map((section, sectionIndex) => (
+                    <div className="patch-change-section" key={`${section.target}-${sectionIndex}`}>
+                      {section.target ? <strong className="patch-target">{section.target}</strong> : null}
+                      {section.details.map((detail, detailIndex) => (
+                        <p className="patch-change-detail" key={`${detail}-${detailIndex}`}>{detail}</p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                {sourceUrl ? (
+                  <a
+                    className="patch-source-link"
+                    href={sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    공식 패치노트 <span aria-hidden="true">↗</span>
+                  </a>
+                ) : null}
+              </article>
+            );
+          })}
           {!patches.length ? <div className="empty">등록된 패치 히스토리가 없습니다.</div> : null}
         </div>
       </section>

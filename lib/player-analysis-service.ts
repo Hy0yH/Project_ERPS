@@ -1,5 +1,6 @@
 import { ER_SEASON_ID, PLAYER_ANALYSIS_CACHE_HOURS } from "@/lib/env";
 import {
+  fetchGameData,
   fetchUserRankByUserId,
   fetchUserStatsByUserId,
   isNicknameNotFoundError
@@ -9,9 +10,13 @@ import { explainPlayerAnalysis } from "@/lib/openai";
 import { getActivePatch } from "@/lib/patch-version";
 import {
   PLAYER_ANALYSIS_GAME_LIMIT,
+  PLAYER_ANALYSIS_BASE_VERSION,
   PLAYER_ANALYSIS_CACHE_VERSION,
   PLAYER_ANALYSIS_MIN_OVERALL_GAMES,
   PLAYER_ANALYSIS_MIN_OVERALL_PLAYERS,
+  PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES,
+  PLAYER_ANALYSIS_MIN_ROLE_GAMES,
+  PLAYER_ANALYSIS_MIN_ROLE_PLAYERS,
   PLAYER_ANALYSIS_MIN_SAME_PICK_GAMES,
   PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS,
   PLAYER_ANALYSIS_MMR_BUCKET,
@@ -20,12 +25,21 @@ import {
   mmrBucketStart,
   type AnalysisRow
 } from "@/lib/player-analysis";
+import {
+  classifyCharacterWeapon,
+  isRoleBenchmarkEligible,
+  type CombatArchetypeClassification
+} from "@/lib/combat-archetypes";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { PatchVersion, PlayerAnalysis } from "@/lib/types";
-import { weaponName } from "@/lib/weapons";
+import { weaponCodeForType, weaponName } from "@/lib/weapons";
 
 const PAGE_SIZE = 1000;
 const inFlight = new Map<string, Promise<PlayerAnalysis>>();
+let officialCombatArchetypeCache: {
+  expiresAt: number;
+  values: Map<string, CombatArchetypeClassification>;
+} | null = null;
 
 export class PlayerAnalysisNotFoundError extends Error {
   readonly code = "PLAYER_NOT_FOUND";
@@ -123,18 +137,38 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       return rowMmr >= bucket && rowMmr < bucket + PLAYER_ANALYSIS_MMR_BUCKET;
     });
     const mainPick = mostPlayedPick(selectedRows);
+    const combatArchetypes = await fetchCombatArchetypes(supabase);
+    const combatClassification = combatArchetypes.get(
+      `${mainPick.characterCode}:${mainPick.weaponCode}`
+    ) ?? null;
     const samePickInitial = filterSamePick(initialRows, mainPick);
     const samePickExpanded = filterSamePick(expandedRows, mainPick);
     const samePickRows = cohortMeetsMinimums(
       samePickInitial,
       PLAYER_ANALYSIS_MIN_SAME_PICK_GAMES,
-      PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS
+      PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS,
+      PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES
     ) ? samePickInitial : samePickExpanded;
     const overallRows = cohortMeetsMinimums(
       initialRows,
       PLAYER_ANALYSIS_MIN_OVERALL_GAMES,
       PLAYER_ANALYSIS_MIN_OVERALL_PLAYERS
     ) ? initialRows : expandedRows;
+    const roleInitial = filterSameRole(initialRows, combatClassification, combatArchetypes);
+    const roleExpanded = filterSameRole(expandedRows, combatClassification, combatArchetypes);
+    const roleInitialMeetsMinimums = cohortMeetsMinimums(
+      roleInitial,
+      PLAYER_ANALYSIS_MIN_ROLE_GAMES,
+      PLAYER_ANALYSIS_MIN_ROLE_PLAYERS,
+      PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES
+    );
+    const roleExpandedMeetsMinimums = cohortMeetsMinimums(
+      roleExpanded,
+      PLAYER_ANALYSIS_MIN_ROLE_GAMES,
+      PLAYER_ANALYSIS_MIN_ROLE_PLAYERS,
+      PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES
+    );
+    const roleRows = roleInitialMeetsMinimums ? roleInitial : roleExpanded;
     const characters = await fetchCharacterNames(supabase);
     let analysis = buildPlayerAnalysis({
       nickname,
@@ -142,6 +176,8 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       playerRows: selectedRows,
       overallRows,
       samePickRows,
+      roleRows,
+      combatClassification,
       characterNames: characters,
       rank,
       seasonId: ER_SEASON_ID,
@@ -150,12 +186,15 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       expandedBenchmark: !cohortMeetsMinimums(
         samePickInitial,
         PLAYER_ANALYSIS_MIN_SAME_PICK_GAMES,
-        PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS
+        PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS,
+        PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES
       ) && cohortMeetsMinimums(
         samePickExpanded,
         PLAYER_ANALYSIS_MIN_SAME_PICK_GAMES,
-        PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS
-      )
+        PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS,
+        PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES
+      ),
+      expandedRoleBenchmark: !roleInitialMeetsMinimums && roleExpandedMeetsMinimums
     });
     analysis = {
       ...analysis,
@@ -238,7 +277,7 @@ async function fetchPlayerRows(
     if (!data || data.length < PAGE_SIZE) break;
   }
   return rows
-    .filter((row) => Number(row.analysis_data_version ?? 0) >= 1)
+    .filter((row) => Number(row.analysis_data_version ?? 0) >= PLAYER_ANALYSIS_VERSION)
     .sort((a, b) => rowStartedAt(b).localeCompare(rowStartedAt(a)))
     .sort((a, b) => Number(Boolean(patch && rowMatchesPatch(b, patch))) - Number(Boolean(patch && rowMatchesPatch(a, patch))));
 }
@@ -258,7 +297,7 @@ async function fetchCohortRows(
       .eq("matches.season_id", ER_SEASON_ID)
       .eq("matches.matching_mode", 3)
       .eq("matches.matching_team_mode", 3)
-      .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION)
+      .gte("analysis_data_version", PLAYER_ANALYSIS_BASE_VERSION)
       .gte("mmr_after", mmrMin)
       .lt("mmr_after", mmrMax);
     if (patch) {
@@ -281,6 +320,72 @@ async function fetchCharacterNames(supabase: ReturnType<typeof getSupabaseAdmin>
   const { data, error } = await supabase.from("characters").select("character_code, name_ko");
   if (error) throw error;
   return new Map((data ?? []).map((row) => [Number(row.character_code), String(row.name_ko)]));
+}
+
+async function fetchCombatArchetypes(supabase: ReturnType<typeof getSupabaseAdmin>) {
+  const { data, error } = await supabase
+    .from("character_weapon_archetypes")
+    .select(
+      "character_code, weapon_code, range_profile, primary_function, secondary_function, score_profile, review_status, confidence, classification_version, review_reason"
+    );
+  if (!error && data?.length) {
+    return new Map(data.map((row) => [
+      `${Number(row.character_code)}:${Number(row.weapon_code)}`,
+      {
+        rangeProfile: row.range_profile,
+        primaryFunction: row.primary_function,
+        secondaryFunction: row.secondary_function,
+        scoreProfile: row.score_profile,
+        reviewStatus: row.review_status,
+        confidence: row.confidence,
+        reviewReason: row.review_reason,
+        classificationVersion: Number(row.classification_version)
+      } as CombatArchetypeClassification
+    ]));
+  }
+  if (error) console.warn(`Combat archetype table unavailable; using official API fallback: ${error.message}`);
+  return fetchOfficialCombatArchetypes();
+}
+
+async function fetchOfficialCombatArchetypes() {
+  if (officialCombatArchetypeCache && officialCombatArchetypeCache.expiresAt > Date.now()) {
+    return officialCombatArchetypeCache.values;
+  }
+  try {
+    const [characters, masteries] = await Promise.all([
+      fetchGameData("Character", "v2"),
+      fetchGameData("CharacterMastery", "v2")
+    ]);
+    const masteryByCharacter = new Map(masteries.map((row) => [
+      Number(row.code),
+      [row.weapon1, row.weapon2, row.weapon3, row.weapon4]
+        .filter((value): value is string => typeof value === "string" && value !== "None")
+    ]));
+    const values = new Map<string, CombatArchetypeClassification>();
+    for (const character of characters) {
+      const characterCode = Number(character.code ?? 0);
+      const weaponTypes = masteryByCharacter.get(characterCode) ?? [];
+      for (const currentWeaponType of weaponTypes.length ? weaponTypes : [null]) {
+        const weaponCode = weaponCodeForType(currentWeaponType) ?? 0;
+        values.set(`${characterCode}:${weaponCode}`, classifyCharacterWeapon({
+          characterCode,
+          weaponCode,
+          weaponType: currentWeaponType,
+          officialPrimary: typeof character.charArcheType1 === "string" ? character.charArcheType1 : null,
+          officialSecondary: typeof character.charArcheType2 === "string" ? character.charArcheType2 : null,
+          officialRangeType: typeof character.weaponRangeType === "string" ? character.weaponRangeType : null
+        }));
+      }
+    }
+    officialCombatArchetypeCache = {
+      expiresAt: Date.now() + PLAYER_ANALYSIS_CACHE_HOURS * 60 * 60 * 1000,
+      values
+    };
+    return values;
+  } catch (fallbackError) {
+    console.warn(`Official combat archetype fallback failed: ${describeAnalysisError(fallbackError)}`);
+    return new Map<string, CombatArchetypeClassification>();
+  }
 }
 
 async function readPlayerRank(userId: string | null) {
@@ -375,9 +480,37 @@ function filterSamePick(rows: AnalysisRow[], pick: { characterCode: number; weap
   );
 }
 
-function cohortMeetsMinimums(rows: AnalysisRow[], minimumGames: number, minimumPlayers: number) {
+function filterSameRole(
+  rows: AnalysisRow[],
+  playerClassification: CombatArchetypeClassification | null,
+  classifications: Map<string, CombatArchetypeClassification>
+) {
+  if (!playerClassification || !isRoleBenchmarkEligible(playerClassification)) return [];
+  return rows.filter((row) => {
+    const classification = classifications.get(
+      `${Number(row.character_code ?? 0)}:${Number(row.best_weapon ?? 0)}`
+    );
+    return Boolean(
+      classification &&
+      isRoleBenchmarkEligible(classification) &&
+      classification.scoreProfile === playerClassification.scoreProfile
+    );
+  });
+}
+
+function cohortMeetsMinimums(
+  rows: AnalysisRow[],
+  minimumGames: number,
+  minimumPlayers: number,
+  minimumGamesPerPlayer = 1
+) {
   if (rows.length < minimumGames) return false;
-  return new Set(rows.map((row) => Number(row.user_num ?? 0)).filter((userNum) => userNum > 0)).size >= minimumPlayers;
+  const gamesByPlayer = new Map<number, number>();
+  for (const row of rows) {
+    const userNum = Number(row.user_num ?? 0);
+    if (userNum > 0) gamesByPlayer.set(userNum, (gamesByPlayer.get(userNum) ?? 0) + 1);
+  }
+  return [...gamesByPlayer.values()].filter((games) => games >= minimumGamesPerPlayer).length >= minimumPlayers;
 }
 
 function rowMatchesPatch(row: AnalysisRow, patch: PatchVersion) {
