@@ -88,7 +88,7 @@ export async function getOrBuildPlayerAnalysis(
 
 async function buildWithCache(nickname: string, forceRefresh: boolean) {
   const supabase = getSupabaseAdmin();
-  const patch = await getActivePatch(supabase);
+  let patch = await getActivePatch(supabase);
   let cached: Awaited<ReturnType<typeof readCachedAnalysis>> = null;
   try {
     cached = await readCachedAnalysis(nickname, patch?.patch_key ?? "");
@@ -101,16 +101,19 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
 
   try {
     const collection = await collectPlayerAnalysisMatches(nickname);
+    const refreshedPatch = await getActivePatch(supabase);
+    if (refreshedPatch?.patch_key !== patch?.patch_key) patch = refreshedPatch;
+    const selectedPatch = patch;
     if (!collection.userId && !collection.userNum) throw new PlayerAnalysisNotFoundError(nickname);
     const userRows = await fetchPlayerRows(
       supabase,
       collection.userId,
       Number(collection.userNum ?? 0),
       nickname,
-      patch
+      selectedPatch
     );
-    const currentPatchRows = patch
-      ? userRows.filter((row) => rowMatchesPatch(row, patch))
+    const currentPatchRows = selectedPatch
+      ? userRows.filter((row) => rowMatchesPatch(row, selectedPatch))
       : userRows;
     if (!currentPatchRows.length) throw new PlayerAnalysisNoMatchesError(nickname);
 
@@ -119,7 +122,7 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       ...userRows.filter((row) => !currentPatchRows.includes(row))
     ].slice(0, PLAYER_ANALYSIS_GAME_LIMIT);
     const supplementalGames = selectedRows.filter(
-      (row) => patch && !rowMatchesPatch(row, patch)
+      (row) => selectedPatch && !rowMatchesPatch(row, selectedPatch)
     ).length;
     const userNum = Number(collection.userNum ?? selectedRows[0]?.user_num ?? 0);
     const rank = await readPlayerRank(collection.userId);
@@ -127,7 +130,7 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
     const bucket = mmrBucketStart(mmr);
     const expandedRows = await fetchCohortRows(
       supabase,
-      patch,
+      selectedPatch,
       Math.max(0, bucket - PLAYER_ANALYSIS_MMR_BUCKET),
       bucket + PLAYER_ANALYSIS_MMR_BUCKET * 2,
       userNum
@@ -181,7 +184,7 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       characterNames: characters,
       rank,
       seasonId: ER_SEASON_ID,
-      patchKey: patch?.patch_key ?? null,
+      patchKey: selectedPatch?.patch_key ?? null,
       supplementalGames,
       expandedBenchmark: !cohortMeetsMinimums(
         samePickInitial,

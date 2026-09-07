@@ -62,7 +62,7 @@ Copy-Item .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | 서버의 DB 읽기·쓰기 |
 | `ER_SEASON_ID` | 수집할 공식 API 랭크 시즌 ID |
-| `ER_TARGET_PATCH` | 집계할 경기 버전 키(예: `12.1.0`) |
+| `ER_TARGET_PATCH` | 선택 사항. 비워 두면 DB의 최신 수집 패치를 자동 사용하며, 값이 최신 데이터보다 오래되면 최신 패치를 우선합니다. |
 | `ADMIN_TOKEN` | 패치노트 import 보호 |
 | `CRON_SECRET` | 수집·스냅샷 API 보호 |
 
@@ -88,7 +88,7 @@ Copy-Item .env.example .env.local
 | `PLAYER_ANALYSIS_CACHE_HOURS` | `6` | 분석 결과 캐시 시간 |
 | `PLAYER_ANALYSIS_ENABLED` | `true` | 플레이어 분석 기능 활성화 |
 
-`ER_SEASON_ID`와 `ER_TARGET_PATCH`는 서로 다른 번호 체계입니다. `.env.example`에는 현재 프로젝트 설정값인 시즌 `41`, 패치 키 `12.2.0`이 들어 있으므로 수집 전 공식 API 값과 일치하는지 확인해야 합니다.
+`ER_SEASON_ID`와 `ER_TARGET_PATCH`는 서로 다른 번호 체계입니다. 시즌 ID는 공식 API 값과 맞춰야 하며, 패치는 자동 전환을 위해 `ER_TARGET_PATCH`를 비워 두는 구성을 권장합니다. 새 패치를 미리 고정해야 할 때만 값을 지정하세요.
 
 프로덕션에서는 `ADMIN_TOKEN`과 `CRON_SECRET`을 반드시 비어 있지 않은 강한 값으로 설정하세요. 현재 인증 로직은 해당 환경 변수가 없으면 관련 엔드포인트의 토큰 검사를 생략합니다. `SUPABASE_SERVICE_ROLE_KEY`은 브라우저 코드에 노출하면 안 됩니다.
 

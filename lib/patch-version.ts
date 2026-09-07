@@ -3,16 +3,27 @@ import type { PatchVersion } from "@/lib/types";
 
 export async function getActivePatch(supabase: any): Promise<PatchVersion | null> {
   const configuredPatch = parsePatchKey(ER_TARGET_PATCH);
-  if (configuredPatch) {
-    return getStoredPatchInfo(
+  const latestPatch = await getLatestStoredPatch(supabase);
+  if (!configuredPatch) return latestPatch;
+
+  const configuredPatchInfo = await getStoredPatchInfo(
       supabase,
       configuredPatch.version_season,
       configuredPatch.version_major,
       configuredPatch.version_minor
-    );
-  }
+  );
 
-  return getLatestStoredPatch(supabase);
+  return resolveActivePatch(configuredPatch, configuredPatchInfo, latestPatch);
+}
+
+export function resolveActivePatch(
+  configuredPatch: ReturnType<typeof parsePatchKey>,
+  configuredPatchInfo: PatchVersion | null,
+  latestPatch: PatchVersion | null
+) {
+  if (!configuredPatch) return latestPatch;
+  if (latestPatch && comparePatchParts(latestPatch, configuredPatch) > 0) return latestPatch;
+  return configuredPatchInfo ?? latestPatch;
 }
 
 export async function getLatestStoredPatch(supabase: any): Promise<PatchVersion | null> {
@@ -84,6 +95,15 @@ export function parsePatchKey(value: string) {
     version_major: Number(match[2]),
     version_minor: Number(match[3] ?? 0)
   };
+}
+
+function comparePatchParts(
+  left: Pick<PatchVersion, "version_season" | "version_major" | "version_minor">,
+  right: Pick<PatchVersion, "version_season" | "version_major" | "version_minor">
+) {
+  return left.version_season - right.version_season ||
+    left.version_major - right.version_major ||
+    left.version_minor - right.version_minor;
 }
 
 export function matchesPatch(row: Record<string, unknown>, patch: PatchVersion | null) {
