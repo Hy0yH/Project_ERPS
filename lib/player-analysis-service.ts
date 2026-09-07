@@ -261,6 +261,28 @@ async function fetchPlayerRows(
   nickname: string,
   patch: PatchVersion | null
 ) {
+  const primaryRows = await queryPlayerRows(supabase, userId
+    ? { type: "external_user_id", value: userId }
+    : userNum > 0
+      ? { type: "user_num", value: userNum }
+      : { type: "nickname", value: nickname });
+  const normalizedPrimary = normalizeFetchedPlayerRows(primaryRows, patch);
+  const primaryHasTargetPatch = normalizedPrimary.some((row) => !patch || rowMatchesPatch(row, patch));
+
+  if (!userId || primaryHasTargetPatch) return normalizedPrimary;
+
+  // The official API UID format has changed before, while historical rows remain
+  // discoverable by the nickname used in each match. Only use this fallback when
+  // the current UID has no rows for the selected patch, then prefer UID rows when
+  // the same game exists through both paths.
+  const nicknameRows = await queryPlayerRows(supabase, { type: "nickname", value: nickname });
+  return normalizeFetchedPlayerRows(mergePlayerRows(primaryRows, nicknameRows), patch);
+}
+
+async function queryPlayerRows(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  identity: { type: "external_user_id" | "user_num" | "nickname"; value: string | number }
+) {
   const rows: AnalysisRow[] = [];
   for (let from = 0; rows.length < PLAYER_ANALYSIS_GAME_LIMIT * 3; from += PAGE_SIZE) {
     let query = supabase
@@ -269,20 +291,31 @@ async function fetchPlayerRows(
       .eq("matches.season_id", ER_SEASON_ID)
       .eq("matches.matching_mode", 3)
       .eq("matches.matching_team_mode", 3);
-    query = userId
-      ? query.eq("external_user_id", userId)
-      : userNum > 0
-        ? query.eq("user_num", userNum)
-        : query.ilike("nickname", nickname);
+    query = identity.type === "nickname"
+      ? query.ilike("nickname", String(identity.value))
+      : query.eq(identity.type, identity.value);
     const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
     rows.push(...((data ?? []) as AnalysisRow[]));
     if (!data || data.length < PAGE_SIZE) break;
   }
+  return rows;
+}
+
+function normalizeFetchedPlayerRows(rows: AnalysisRow[], patch: PatchVersion | null) {
   return rows
     .filter((row) => Number(row.analysis_data_version ?? 0) >= PLAYER_ANALYSIS_VERSION)
     .sort((a, b) => rowStartedAt(b).localeCompare(rowStartedAt(a)))
     .sort((a, b) => Number(Boolean(patch && rowMatchesPatch(b, patch))) - Number(Boolean(patch && rowMatchesPatch(a, patch))));
+}
+
+function mergePlayerRows(primaryRows: AnalysisRow[], fallbackRows: AnalysisRow[]) {
+  const merged = new Map<number, AnalysisRow>();
+  for (const row of [...fallbackRows, ...primaryRows]) {
+    const gameId = Number(row.game_id ?? row.gameId ?? 0);
+    if (gameId > 0) merged.set(gameId, row);
+  }
+  return [...merged.values()];
 }
 
 async function fetchCohortRows(
