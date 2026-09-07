@@ -30,7 +30,14 @@ describe("patch note parser", () => {
   });
 });
 
-describe("12.2 bundled patch changes", () => {
+describe("bundled patch changes", () => {
+  it("covers every 12.3 general-mode character balance change", () => {
+    const patchChanges = BUNDLED_PATCH_CHANGES.filter((change) => change.patch_version === "12.3");
+    expect(new Set(patchChanges.map((change) => change.character_code)).size).toBe(39);
+    expect(patchChanges).toHaveLength(48);
+    expect(patchSourceUrl("12.3")).toContain("/posts/news/3813");
+  });
+
   it("covers every general-mode character balance change", () => {
     const patchChanges = BUNDLED_PATCH_CHANGES.filter((change) => change.patch_version === "12.2");
     expect(new Set(patchChanges.map((change) => change.character_code)).size).toBe(37);
@@ -39,11 +46,35 @@ describe("12.2 bundled patch changes", () => {
 
   it("only returns changes for Jackie's selected weapon", () => {
     expect(getBundledPatchChanges(1, 15).map((change) => change.patch_version)).toEqual([
+      "12.3",
+      "12.3",
       "12.2",
       "12.2b"
     ]);
-    expect(getBundledPatchChanges(1, 14).map((change) => change.change_type)).toEqual(["buff"]);
-    expect(getBundledPatchChanges(1, 18)).toEqual([]);
+    expect(getBundledPatchChanges(1, 14).slice(0, 2).map((change) => change.change_type)).toEqual([
+      "buff",
+      "nerf"
+    ]);
+    expect(getBundledPatchChanges(1, 18).slice(0, 2).map((change) => change.change_type)).toEqual([
+      "buff",
+      "nerf"
+    ]);
+  });
+
+  it("scopes 12.3 weapon-specific changes and preserves mixed adjustments", () => {
+    expect(getBundledPatchChanges(6, 7).filter((change) => change.patch_version === "12.3")).toEqual([]);
+    expect(getBundledPatchChanges(6, 8).filter((change) => change.patch_version === "12.3")).toHaveLength(1);
+    expect(getBundledPatchChanges(52).map((change) => change.change_type).slice(0, 3)).toEqual([
+      "adjustment",
+      "buff",
+      "buff"
+    ]);
+    expect(getBundledPatchChanges(89).filter((change) => change.patch_version === "12.3").map((change) => change.change_type)).toEqual([
+      "nerf",
+      "nerf",
+      "buff",
+      "buff"
+    ]);
   });
 
   it("provides Korean change labels", () => {
