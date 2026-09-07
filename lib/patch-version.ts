@@ -97,7 +97,7 @@ export function parsePatchKey(value: string) {
   };
 }
 
-function comparePatchParts(
+export function comparePatchParts(
   left: Pick<PatchVersion, "version_season" | "version_major" | "version_minor">,
   right: Pick<PatchVersion, "version_season" | "version_major" | "version_minor">
 ) {

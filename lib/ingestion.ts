@@ -501,7 +501,8 @@ export async function collectPlayerAnalysisMatches(
       currentPatchGames: 0,
       supplementalGames: 0,
       userId: null,
-      userNum: null
+      userNum: null,
+      playerRows: [] as Record<string, unknown>[]
     };
   }
 
@@ -519,7 +520,8 @@ export async function collectPlayerAnalysisMatches(
       currentPatchGames: 0,
       supplementalGames: 0,
       userId: null,
-      userNum: null
+      userNum: null,
+      playerRows: [] as Record<string, unknown>[]
     };
   }
 
@@ -603,7 +605,8 @@ export async function collectPlayerAnalysisMatches(
     currentPatchGames: Math.min(currentPatchRows.length, limit),
     supplementalGames: Math.max(0, selectedRows.length - currentPatchRows.length),
     userId,
-    userNum: firstRow ? resolvePlayerUserNum(firstRow, identity) : resolvedUserNum
+    userNum: firstRow ? resolvePlayerUserNum(firstRow, identity) : resolvedUserNum,
+    playerRows: selectedRows
   };
 }
 

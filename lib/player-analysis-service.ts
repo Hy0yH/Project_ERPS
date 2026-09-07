@@ -7,7 +7,12 @@ import {
 } from "@/lib/eternal-return";
 import { collectPlayerAnalysisMatches } from "@/lib/ingestion";
 import { explainPlayerAnalysis } from "@/lib/openai";
-import { getActivePatch } from "@/lib/patch-version";
+import {
+  comparePatchParts,
+  getActivePatch,
+  getStoredPatchInfo,
+  matchesPatch
+} from "@/lib/patch-version";
 import {
   PLAYER_ANALYSIS_GAME_LIMIT,
   PLAYER_ANALYSIS_BASE_VERSION,
@@ -103,13 +108,33 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
     const collection = await collectPlayerAnalysisMatches(nickname);
     const refreshedPatch = await getActivePatch(supabase);
     if (refreshedPatch?.patch_key !== patch?.patch_key) patch = refreshedPatch;
+    const observedPatch = latestObservedPatch(collection.playerRows, patch);
+    if (observedPatch && (!patch || comparePatchParts(observedPatch, patch) > 0)) {
+      try {
+        const storedObservedPatch = await getStoredPatchInfo(
+          supabase,
+          observedPatch.version_season,
+          observedPatch.version_major,
+          observedPatch.version_minor
+        );
+        patch = storedObservedPatch?.latest_match_at ? storedObservedPatch : observedPatch;
+      } catch {
+        patch = observedPatch;
+      }
+    }
     const selectedPatch = patch;
     if (!collection.userId && !collection.userNum) throw new PlayerAnalysisNotFoundError(nickname);
-    const userRows = await fetchPlayerRows(
+    const persistedRows = await fetchPlayerRows(
       supabase,
       collection.userId,
       Number(collection.userNum ?? 0),
       nickname,
+      selectedPatch
+    );
+    // Saving a partial official-API row is best effort. Analyze the response we
+    // already fetched even when the production database is temporarily behind.
+    const userRows = sortPlayerRows(
+      mergePlayerRows(persistedRows, collection.playerRows as AnalysisRow[]),
       selectedPatch
     );
     const currentPatchRows = selectedPatch
@@ -483,7 +508,7 @@ async function writeCachedAnalysis(
     analysis.scope.patch_key ?? "none",
     PLAYER_ANALYSIS_CACHE_VERSION
   ].join(":");
-  const latestGameId = rows.map((row) => Number(row.game_id ?? 0)).find(Boolean) ?? null;
+  const latestGameId = rows.map((row) => Number(row.game_id ?? row.gameId ?? 0)).find(Boolean) ?? null;
   const { error } = await supabase.from("player_analysis_cache").upsert({
     cache_key: cacheKey,
     user_num: analysis.player.user_num,
@@ -502,7 +527,7 @@ async function writeCachedAnalysis(
 function mostPlayedPick(rows: AnalysisRow[]) {
   const counts = new Map<string, number>();
   for (const row of rows) {
-    const key = `${Number(row.character_code ?? 0)}:${Number(row.best_weapon ?? 0)}`;
+    const key = `${Number(row.character_code ?? row.characterNum ?? row.characterCode ?? 0)}:${Number(row.best_weapon ?? row.bestWeapon ?? 0)}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const [key = "0:0"] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
@@ -512,7 +537,8 @@ function mostPlayedPick(rows: AnalysisRow[]) {
 
 function filterSamePick(rows: AnalysisRow[], pick: { characterCode: number; weaponCode: number }) {
   return rows.filter(
-    (row) => Number(row.character_code) === pick.characterCode && Number(row.best_weapon ?? 0) === pick.weaponCode
+    (row) => Number(row.character_code ?? row.characterNum ?? row.characterCode ?? 0) === pick.characterCode &&
+      Number(row.best_weapon ?? row.bestWeapon ?? 0) === pick.weaponCode
   );
 }
 
@@ -524,7 +550,7 @@ function filterSameRole(
   if (!playerClassification || !isRoleBenchmarkEligible(playerClassification)) return [];
   return rows.filter((row) => {
     const classification = classifications.get(
-      `${Number(row.character_code ?? 0)}:${Number(row.best_weapon ?? 0)}`
+      `${Number(row.character_code ?? row.characterNum ?? row.characterCode ?? 0)}:${Number(row.best_weapon ?? row.bestWeapon ?? 0)}`
     );
     return Boolean(
       classification &&
@@ -550,15 +576,55 @@ function cohortMeetsMinimums(
 }
 
 function rowMatchesPatch(row: AnalysisRow, patch: PatchVersion) {
-  const match = joinedMatch(row);
-  return Number(match.version_season) === patch.version_season &&
-    Number(match.version_major) === patch.version_major &&
-    Number(match.version_minor) === patch.version_minor &&
-    String(match.started_at ?? "") >= patch.patch_start_at;
+  const source = rowMatchSource(row);
+  return matchesPatch(source, patch);
 }
 
 function rowStartedAt(row: AnalysisRow) {
-  return String(joinedMatch(row).started_at ?? "");
+  const source = rowMatchSource(row);
+  return String(source.started_at ?? source.startDtm ?? row.started_at ?? row.startDtm ?? "");
+}
+
+function rowMatchSource(row: AnalysisRow) {
+  const match = joinedMatch(row);
+  return Object.keys(match).length ? match : row;
+}
+
+function sortPlayerRows(rows: AnalysisRow[], patch: PatchVersion | null) {
+  return rows
+    .sort((a, b) => rowStartedAt(b).localeCompare(rowStartedAt(a)))
+    .sort((a, b) => Number(Boolean(patch && rowMatchesPatch(b, patch))) - Number(Boolean(patch && rowMatchesPatch(a, patch))));
+}
+
+function latestObservedPatch(rows: AnalysisRow[], fallback: PatchVersion | null): PatchVersion | null {
+  const candidates = rows.flatMap((row) => {
+    const versionSeason = Number(row.versionSeason ?? row.version_season ?? fallback?.version_season ?? 0);
+    const versionMajor = Number(row.versionMajor ?? row.version_major);
+    const versionMinor = Number(row.versionMinor ?? row.version_minor);
+    if (!versionSeason || !Number.isFinite(versionMajor) || !Number.isFinite(versionMinor)) return [];
+    return [{
+      version_season: versionSeason,
+      version_major: versionMajor,
+      version_minor: versionMinor,
+      started_at: rowStartedAt(row)
+    }];
+  });
+  if (!candidates.length) return null;
+
+  const latest = [...candidates].sort((a, b) => comparePatchParts(b, a))[0];
+  const samePatchDates = candidates
+    .filter((candidate) => comparePatchParts(candidate, latest) === 0)
+    .map((candidate) => candidate.started_at)
+    .filter(Boolean)
+    .sort();
+  return {
+    patch_key: `${latest.version_season}.${latest.version_major}.${latest.version_minor}`,
+    version_season: latest.version_season,
+    version_major: latest.version_major,
+    version_minor: latest.version_minor,
+    patch_start_at: samePatchDates[0] ?? "",
+    latest_match_at: samePatchDates.at(-1) ?? ""
+  };
 }
 
 function joinedMatch(row: AnalysisRow): AnalysisRow {
