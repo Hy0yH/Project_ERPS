@@ -23,6 +23,7 @@ import {
   getRows
 } from "@/lib/eternal-return";
 import { getActivePatch, matchesPatch } from "@/lib/patch-version";
+import { resolveAnalysisSeason } from "@/lib/analysis-season";
 import {
   DEFAULT_RANK_SCOPE,
   RANK_SCOPE_OPTIONS,
@@ -489,8 +490,10 @@ export async function collectPlayerRecentMatches(
 export async function collectPlayerAnalysisMatches(
   nickname: string,
   limit = ER_ANALYSIS_PLAYER_MATCH_LIMIT,
-  peerGameLimit = ER_ANALYSIS_PEER_GAME_LIMIT
+  peerGameLimit = ER_ANALYSIS_PEER_GAME_LIMIT,
+  storedSeasonId: number | null = null
 ) {
+  let seasonId = resolveAnalysisSeason(ER_SEASON_ID, storedSeasonId);
   const trimmedNickname = nickname.trim();
   if (!trimmedNickname) {
     return {
@@ -500,6 +503,7 @@ export async function collectPlayerAnalysisMatches(
       inspectedGames: 0,
       currentPatchGames: 0,
       supplementalGames: 0,
+      seasonId,
       userId: null,
       userNum: null,
       playerRows: [] as Record<string, unknown>[]
@@ -519,6 +523,7 @@ export async function collectPlayerAnalysisMatches(
       inspectedGames: 0,
       currentPatchGames: 0,
       supplementalGames: 0,
+      seasonId,
       userId: null,
       userNum: null,
       playerRows: [] as Record<string, unknown>[]
@@ -536,8 +541,11 @@ export async function collectPlayerAnalysisMatches(
     const games = payload.userGames ?? [];
     if (!games.length) break;
 
+    if (!currentPatchRows.length && !seasonFallbackRows.length) {
+      seasonId = resolveAnalysisSeason(ER_SEASON_ID, seasonId, games.filter(isRankedSquad));
+    }
     for (const row of games) {
-      if (!isRankedSquad(row) || !isConfiguredSeason(row)) continue;
+      if (!isRankedSquad(row) || !seasonId || Number(row.seasonId ?? row.season_id) !== seasonId) continue;
       if (!activePatch || matchesPatch(row, activePatch)) currentPatchRows.push(row);
       else seasonFallbackRows.push(row);
       if (currentPatchRows.length + seasonFallbackRows.length >= limit) break;
@@ -604,6 +612,7 @@ export async function collectPlayerAnalysisMatches(
     inspectedGames: selectedRows.length,
     currentPatchGames: Math.min(currentPatchRows.length, limit),
     supplementalGames: Math.max(0, selectedRows.length - currentPatchRows.length),
+    seasonId,
     userId,
     userNum: firstRow ? resolvePlayerUserNum(firstRow, identity) : resolvedUserNum,
     playerRows: selectedRows

@@ -1,4 +1,5 @@
 import { ER_SEASON_ID, PLAYER_ANALYSIS_CACHE_HOURS } from "@/lib/env";
+import { getStoredAnalysisSeason, validSeasonId } from "@/lib/analysis-season";
 import {
   fetchGameData,
   fetchUserRankByUserId,
@@ -94,9 +95,10 @@ export async function getOrBuildPlayerAnalysis(
 async function buildWithCache(nickname: string, forceRefresh: boolean) {
   const supabase = getSupabaseAdmin();
   let patch = await getActivePatch(supabase);
+  let seasonId = await getStoredAnalysisSeason(supabase, ER_SEASON_ID);
   let cached: Awaited<ReturnType<typeof readCachedAnalysis>> = null;
   try {
-    cached = await readCachedAnalysis(nickname, patch?.patch_key ?? "");
+    cached = seasonId ? await readCachedAnalysis(nickname, patch?.patch_key ?? "", seasonId) : null;
   } catch {
     // The feature can still return a useful setup error before migration 004 is applied.
   }
@@ -105,7 +107,14 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
   }
 
   try {
-    const collection = await collectPlayerAnalysisMatches(nickname);
+    const collection = await collectPlayerAnalysisMatches(nickname, undefined, undefined, seasonId);
+    if (!collection.userId && !collection.userNum) throw new PlayerAnalysisNotFoundError(nickname);
+    const collectedSeasonId = validSeasonId(collection.seasonId);
+    if (!collectedSeasonId) {
+      throw new PlayerAnalysisUnavailableError("분석할 랭크 시즌을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    }
+    if (seasonId !== collectedSeasonId) cached = null;
+    seasonId = collectedSeasonId;
     const refreshedPatch = await getActivePatch(supabase);
     if (refreshedPatch?.patch_key !== patch?.patch_key) patch = refreshedPatch;
     const observedPatch = latestObservedPatch(collection.playerRows, patch);
@@ -123,13 +132,13 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       }
     }
     const selectedPatch = patch;
-    if (!collection.userId && !collection.userNum) throw new PlayerAnalysisNotFoundError(nickname);
     const persistedRows = await fetchPlayerRows(
       supabase,
       collection.userId,
       Number(collection.userNum ?? 0),
       nickname,
-      selectedPatch
+      selectedPatch,
+      seasonId
     );
     // Saving a partial official-API row is best effort. Analyze the response we
     // already fetched even when the production database is temporarily behind.
@@ -150,15 +159,16 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       (row) => selectedPatch && !rowMatchesPatch(row, selectedPatch)
     ).length;
     const userNum = Number(collection.userNum ?? selectedRows[0]?.user_num ?? 0);
-    const rank = await readPlayerRank(collection.userId);
-    const mmr = Number(rank.mmr ?? selectedRows[0]?.mmr_after ?? 0);
+    const rank = await readPlayerRank(collection.userId, seasonId);
+    const mmr = Number(rank.mmr ?? selectedRows[0]?.mmr_after ?? selectedRows[0]?.mmrAfter ?? 0);
     const bucket = mmrBucketStart(mmr);
     const expandedRows = await fetchCohortRows(
       supabase,
       selectedPatch,
       Math.max(0, bucket - PLAYER_ANALYSIS_MMR_BUCKET),
       bucket + PLAYER_ANALYSIS_MMR_BUCKET * 2,
-      userNum
+      userNum,
+      seasonId
     );
     const initialRows = expandedRows.filter((row) => {
       const rowMmr = Number(row.mmr_after ?? 0);
@@ -208,7 +218,7 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       combatClassification,
       characterNames: characters,
       rank,
-      seasonId: ER_SEASON_ID,
+      seasonId,
       patchKey: selectedPatch?.patch_key ?? null,
       supplementalGames,
       expandedBenchmark: !cohortMeetsMinimums(
@@ -284,13 +294,14 @@ async function fetchPlayerRows(
   userId: string | null,
   userNum: number,
   nickname: string,
-  patch: PatchVersion | null
+  patch: PatchVersion | null,
+  seasonId: number
 ) {
   const primaryRows = await queryPlayerRows(supabase, userId
     ? { type: "external_user_id", value: userId }
     : userNum > 0
       ? { type: "user_num", value: userNum }
-      : { type: "nickname", value: nickname });
+      : { type: "nickname", value: nickname }, seasonId);
   const normalizedPrimary = normalizeFetchedPlayerRows(primaryRows, patch);
   const primaryHasTargetPatch = normalizedPrimary.some((row) => !patch || rowMatchesPatch(row, patch));
 
@@ -300,20 +311,21 @@ async function fetchPlayerRows(
   // discoverable by the nickname used in each match. Only use this fallback when
   // the current UID has no rows for the selected patch, then prefer UID rows when
   // the same game exists through both paths.
-  const nicknameRows = await queryPlayerRows(supabase, { type: "nickname", value: nickname });
+  const nicknameRows = await queryPlayerRows(supabase, { type: "nickname", value: nickname }, seasonId);
   return normalizeFetchedPlayerRows(mergePlayerRows(primaryRows, nicknameRows), patch);
 }
 
 async function queryPlayerRows(
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  identity: { type: "external_user_id" | "user_num" | "nickname"; value: string | number }
+  identity: { type: "external_user_id" | "user_num" | "nickname"; value: string | number },
+  seasonId: number
 ) {
   const rows: AnalysisRow[] = [];
   for (let from = 0; rows.length < PLAYER_ANALYSIS_GAME_LIMIT * 3; from += PAGE_SIZE) {
     let query = supabase
       .from("match_players")
       .select("*, matches!inner(season_id, matching_mode, matching_team_mode, version_season, version_major, version_minor, started_at)")
-      .eq("matches.season_id", ER_SEASON_ID)
+      .eq("matches.season_id", seasonId)
       .eq("matches.matching_mode", 3)
       .eq("matches.matching_team_mode", 3);
     query = identity.type === "nickname"
@@ -348,14 +360,15 @@ async function fetchCohortRows(
   patch: PatchVersion | null,
   mmrMin: number,
   mmrMax: number,
-  excludedUserNum: number
+  excludedUserNum: number,
+  seasonId: number
 ) {
   const rows: AnalysisRow[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
     let query = supabase
       .from("match_players")
       .select("*, matches!inner(season_id, matching_mode, matching_team_mode, version_season, version_major, version_minor, started_at)")
-      .eq("matches.season_id", ER_SEASON_ID)
+      .eq("matches.season_id", seasonId)
       .eq("matches.matching_mode", 3)
       .eq("matches.matching_team_mode", 3)
       .gte("analysis_data_version", PLAYER_ANALYSIS_BASE_VERSION)
@@ -449,18 +462,18 @@ async function fetchOfficialCombatArchetypes() {
   }
 }
 
-async function readPlayerRank(userId: string | null) {
-  if (!userId || !ER_SEASON_ID) return {};
+async function readPlayerRank(userId: string | null, seasonId: number) {
+  if (!userId) return {};
 
   let rank: Record<string, unknown> = {};
   let stats: Record<string, unknown> = {};
   try {
-    rank = await fetchUserRankByUserId(userId, ER_SEASON_ID);
+    rank = await fetchUserRankByUserId(userId, seasonId);
   } catch {
     // Match-derived MMR remains available when the rank endpoint is temporarily unavailable.
   }
   try {
-    const rows = await fetchUserStatsByUserId(userId, ER_SEASON_ID);
+    const rows = await fetchUserStatsByUserId(userId, seasonId);
     stats = rows.find((row) => Number(row.matchingTeamMode ?? 0) === 3) ?? rows[0] ?? {};
   } catch {
     // Rank data above is still useful when the stats endpoint is temporarily unavailable.
@@ -474,20 +487,20 @@ async function readPlayerRank(userId: string | null) {
   };
 }
 
-async function readCachedAnalysis(nickname: string, patchKey: string) {
+async function readCachedAnalysis(nickname: string, patchKey: string, seasonId: number) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("player_analysis_cache")
     .select("payload, expires_at")
     .ilike("nickname", nickname)
-    .eq("season_id", ER_SEASON_ID)
+    .eq("season_id", seasonId)
     .eq("patch_key", patchKey)
     .eq("analysis_version", PLAYER_ANALYSIS_CACHE_VERSION)
     .order("generated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  if (!data?.payload) return null;
+  if (!data?.payload || (data.payload as PlayerAnalysis).scope?.season_id !== seasonId) return null;
   return {
     analysis: data.payload as PlayerAnalysis,
     fresh: new Date(String(data.expires_at)).getTime() > Date.now()
