@@ -37,6 +37,7 @@
 | `/recommend` | 닉네임과 팀원 최대 2명을 반영한 추천 |
 | `/players/[nickname]` | 개인 전적 수집 및 플레이스타일 분석 |
 | `/admin/patch-notes` | 공식 패치노트 URL import |
+| `/admin/stats` | 관리자 토큰 인증 후 집계된 캐릭터·무기 수 조회 |
 
 ## 로컬 실행
 
@@ -63,7 +64,7 @@ Copy-Item .env.example .env.local
 | `SUPABASE_SERVICE_ROLE_KEY` | 서버의 DB 읽기·쓰기 |
 | `ER_SEASON_ID` | 수집할 공식 API 랭크 시즌 ID |
 | `ER_TARGET_PATCH` | 선택 사항. 비워 두면 DB의 최신 수집 패치를 자동 사용하며, 값이 최신 데이터보다 오래되면 최신 패치를 우선합니다. |
-| `ADMIN_TOKEN` | 패치노트 import 보호 |
+| `ADMIN_TOKEN` | 패치노트 import 및 내부 통계 조회 보호 |
 | `CRON_SECRET` | 수집·스냅샷 API 보호 |
 
 선택 설정은 다음과 같습니다.
@@ -92,7 +93,7 @@ Copy-Item .env.example .env.local
 
 플레이어 분석은 `ER_SEASON_ID`가 없거나 유효한 양의 정수가 아니면 최근 랭크 스쿼드 경기의 시즌을 자동으로 확인합니다. 수집한 공식 경기에서 더 최신 시즌이 확인되면 해당 시즌을 사용하며, 개인 기록·비교 표본·순위·캐시는 모두 같은 시즌을 따릅니다. 시즌을 확인할 수 없으면 시즌 0으로 분석하지 않고 오류를 반환합니다. 정기 수집 작업에는 여전히 올바른 `ER_SEASON_ID` 설정이 필요합니다.
 
-프로덕션에서는 `ADMIN_TOKEN`과 `CRON_SECRET`을 반드시 비어 있지 않은 강한 값으로 설정하세요. 현재 인증 로직은 해당 환경 변수가 없으면 관련 엔드포인트의 토큰 검사를 생략합니다. `SUPABASE_SERVICE_ROLE_KEY`은 브라우저 코드에 노출하면 안 됩니다.
+프로덕션에서는 `ADMIN_TOKEN`과 `CRON_SECRET`을 반드시 비어 있지 않은 강한 값으로 설정하세요. 기존 패치노트·수집 API는 해당 환경 변수가 없으면 토큰 검사를 생략합니다. 내부 통계 API(`/api/admin/stats`)는 `ADMIN_TOKEN`이 없으면 조회를 차단합니다. `SUPABASE_SERVICE_ROLE_KEY`은 브라우저 코드에 노출하면 안 됩니다.
 
 ### 3. 데이터베이스 적용
 

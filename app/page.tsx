@@ -48,10 +48,6 @@ export default async function HomePage() {
           <strong>{(snapshotSummary?.sample_players ?? meta.reduce((sum, item) => sum + item.games, 0)).toLocaleString()}</strong>
         </div>
         <div className="metric metric-cell">
-          <span className="muted">활성 티어 집계</span>
-          <strong>{meta.length.toLocaleString()}</strong>
-        </div>
-        <div className="metric metric-cell">
           <span className="muted">조합 집계</span>
           <strong>{(snapshotSummary?.comp_count ?? compCount).toLocaleString()}</strong>
         </div>
