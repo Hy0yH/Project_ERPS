@@ -31,6 +31,30 @@ describe("patch note parser", () => {
 });
 
 describe("bundled patch changes", () => {
+  it("covers the 35 characters in the 12.4 general-mode section", () => {
+    const changes = BUNDLED_PATCH_CHANGES.filter((change) => change.patch_version === "12.4");
+    expect(new Set(changes.map((change) => change.character_code)).size).toBe(35);
+    expect(changes).toHaveLength(36);
+    expect(changes.filter((change) => change.change_type === "buff")).toHaveLength(18);
+    expect(changes.filter((change) => change.change_type === "nerf")).toHaveLength(17);
+    expect(patchSourceUrl("12.4")).toContain("/posts/news/3838");
+  });
+
+  it("keeps Sissela's opposite 12.4 mastery changes separate by weapon", () => {
+    const changesFor = (weapon: number) => getBundledPatchChanges(15, weapon)
+      .filter((change) => change.patch_version === "12.4");
+    expect(changesFor(5).map((change) => change.change_type)).toEqual(["nerf"]);
+    expect(changesFor(6).map((change) => change.change_type)).toEqual(["buff"]);
+    expect(changesFor(9)).toEqual([]);
+  });
+
+  it("treats Adina's damage correction as a bugfix with a negative impact", () => {
+    const change = getBundledPatchChanges(52).find((item) => item.patch_version === "12.4")!;
+    expect(change.change_type).toBe("bugfix");
+    expect(change.impact_score).toBeLessThan(0);
+    expect(change.raw_change_text).toContain("2타");
+  });
+
   it("covers every 12.3 general-mode character balance change", () => {
     const patchChanges = BUNDLED_PATCH_CHANGES.filter((change) => change.patch_version === "12.3");
     expect(new Set(patchChanges.map((change) => change.character_code)).size).toBe(39);
@@ -64,7 +88,7 @@ describe("bundled patch changes", () => {
   it("scopes 12.3 weapon-specific changes and preserves mixed adjustments", () => {
     expect(getBundledPatchChanges(6, 7).filter((change) => change.patch_version === "12.3")).toEqual([]);
     expect(getBundledPatchChanges(6, 8).filter((change) => change.patch_version === "12.3")).toHaveLength(1);
-    expect(getBundledPatchChanges(52).map((change) => change.change_type).slice(0, 3)).toEqual([
+    expect(getBundledPatchChanges(52).filter((change) => change.patch_version === "12.3").map((change) => change.change_type)).toEqual([
       "adjustment",
       "buff",
       "buff"

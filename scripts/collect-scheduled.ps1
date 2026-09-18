@@ -46,7 +46,7 @@ function Read-DotEnv {
 
 function Test-AppServer {
   try {
-    Invoke-WebRequest -Uri "$BaseUrl/api/comps" -TimeoutSec 10 -UseBasicParsing | Out-Null
+    Invoke-WebRequest -Uri "$BaseUrl/api/health" -TimeoutSec 10 -UseBasicParsing | Out-Null
     return $true
   } catch {
     return $false
@@ -75,7 +75,7 @@ function Start-AppServer {
     }
   }
 
-  throw "Next dev server did not become ready within $StartupTimeoutSec seconds."
+  throw "Collector server did not become ready within $StartupTimeoutSec seconds."
 }
 
 function Invoke-CronPost {
@@ -108,6 +108,7 @@ if ($DryRun) {
   Write-Output "Collection scheduler configuration is valid."
   Write-Output "Port=$Port"
   Write-Output "Season=$($envValues['ER_SEASON_ID'])"
+  Write-Output "TargetPatch=$($envValues['ER_TARGET_PATCH'])"
   Write-Output "MinimumMMR=$($envValues['ER_MIN_MMR'])"
   Write-Output "BatchLimit=$($envValues['ER_BATCH_LIMIT'])"
   Write-Output "RankerMatchLimit=$($envValues['ER_RANKER_MATCH_LIMIT'])"
@@ -147,14 +148,15 @@ try {
   }
 
   Write-CollectLog (
-    "Scheduled collection started. season={0} minMmr={1} batch={2} perRanker={3} maxNew={4} discoveryRankers={5} discoveryMinutes={6}" -f `
+    "Scheduled collection started. season={0} minMmr={1} batch={2} perRanker={3} maxNew={4} discoveryRankers={5} discoveryMinutes={6} targetPatch={7}" -f `
       $envValues["ER_SEASON_ID"],
       $envValues["ER_MIN_MMR"],
       $envValues["ER_BATCH_LIMIT"],
       $envValues["ER_RANKER_MATCH_LIMIT"],
       $envValues["ER_COLLECTION_MAX_NEW_MATCHES"],
       $envValues["ER_DISCOVERY_RANKERS_PER_RUN"],
-      $envValues["ER_DISCOVERY_TIME_BUDGET_MINUTES"]
+      $envValues["ER_DISCOVERY_TIME_BUDGET_MINUTES"],
+      $envValues["ER_TARGET_PATCH"]
   )
   Invoke-CronPost -Path "/api/cron/collect-rankers" -TimeoutSec $CollectTimeoutSec -Headers $headers
   Invoke-CronPost -Path "/api/cron/build-snapshots" -TimeoutSec $SnapshotTimeoutSec -Headers $headers

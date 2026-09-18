@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   resolvePlayerUserNum,
+  fetchSnapshotPlayers,
   selectRankersForDiscovery,
   splitSnapshotPlayers,
   type CollectionCursorState
@@ -37,6 +38,30 @@ describe("incremental ranker discovery", () => {
 });
 
 describe("snapshot player selection", () => {
+  it("paginates by matches without truncating complete teams at a player page boundary", async () => {
+    const matches = Array.from({ length: 101 }, (_, index) => ({
+      game_id: index + 1,
+      started_at: "2026-09-17T08:00:00Z",
+      version_season: 12, version_major: 4, version_minor: 0,
+      match_players: Array.from({ length: 24 }, (_, player) => ({
+        game_id: index + 1, user_num: player + 1, team_number: Math.floor(player / 3)
+      }))
+    }));
+    const ranges: number[][] = [];
+    const query: any = {
+      select: () => query, gte: () => query, eq: () => query, order: () => query,
+      range: async (from: number, to: number) => {
+        ranges.push([from, to]);
+        return { data: matches.slice(from, to + 1), error: null };
+      }
+    };
+    const rows = await fetchSnapshotPlayers({ from: () => query } as any, "2026-09-17T02:00:00Z", null);
+    expect(ranges).toEqual([[0, 99], [100, 199]]);
+    expect(rows).toHaveLength(2424);
+    expect(rows.filter((row) => row.game_id === 101)).toHaveLength(24);
+    expect(rows[0].matches.version_major).toBe(4);
+  });
+
   it("keeps complete teams anchored by a mythril-plus player", () => {
     const players = [
       { game_id: 1, team_number: 1, mmr_after: 8100, nickname: "ranker" },

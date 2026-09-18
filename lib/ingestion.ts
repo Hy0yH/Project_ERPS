@@ -362,7 +362,7 @@ export async function collectRankerMatches() {
 
     const failedMatches = queueResult.failedMatches;
     const skippedExistingMatches = existingGameIds.size;
-    const pendingMatches = await countPendingQueueItems(supabase);
+    const pendingMatches = await countPendingQueueItems(supabase, activePatch);
     const warnings = [
       skippedMissingIdentifier
         ? `Skipped ${skippedMissingIdentifier} rankers without a usable identifier.`
@@ -919,15 +919,21 @@ async function resetStaleQueueItems(
 
 async function fetchQueueWork(
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  limit: number
+  limit: number,
+  activePatch: PatchVersion | null
 ) {
-  const { data, error } = await supabase
+  let query = supabase
     .from("match_ingestion_queue")
     .select("game_id, attempts")
     .in("status", ["pending", "failed"])
     .lte("attempts", 3)
     .order("discovered_at", { ascending: true })
     .limit(limit);
+  // 이전 패치의 대기열은 보존하되 새 패치 수집을 지연시키지 않습니다.
+  if (activePatch?.patch_start_at) {
+    query = query.gte("game_started_at", activePatch.patch_start_at);
+  }
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []).map((row) => ({
     game_id: Number(row.game_id),
@@ -940,7 +946,7 @@ async function processQueuedMatches(
   activePatch: PatchVersion | null,
   limit: number
 ) {
-  const queueWork = await fetchQueueWork(supabase, limit);
+  const queueWork = await fetchQueueWork(supabase, limit, activePatch);
   const alreadySavedQueueIds = await findCompleteAnalysisGameIds(
     supabase,
     queueWork.map((item) => item.game_id)
@@ -1019,13 +1025,18 @@ async function failQueueItem(
 }
 
 async function countPendingQueueItems(
-  supabase: ReturnType<typeof getSupabaseAdmin>
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  activePatch: PatchVersion | null
 ) {
-  const { count, error } = await supabase
+  let query = supabase
     .from("match_ingestion_queue")
     .select("*", { count: "exact", head: true })
     .in("status", ["pending", "failed"])
     .lte("attempts", 3);
+  if (activePatch?.patch_start_at) {
+    query = query.gte("game_started_at", activePatch.patch_start_at);
+  }
+  const { count, error } = await query;
   if (error) throw error;
   return Number(count ?? 0);
 }
@@ -1349,31 +1360,38 @@ function buildCharacterSnapshotRows(
   });
 }
 
-async function fetchSnapshotPlayers(
+export async function fetchSnapshotPlayers(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   since: string,
   patch: PatchVersion | null
 ) {
   const players: any[] = [];
+  const matchPageSize = 100;
 
-  for (let from = 0; ; from += SNAPSHOT_PAGE_SIZE) {
-    const to = from + SNAPSHOT_PAGE_SIZE - 1;
+  for (let from = 0; ; from += matchPageSize) {
+    const to = from + matchPageSize - 1;
+    // 패치 초반 소수 표본을 찾기 위해 전체 참가자 테이블을 스캔하지 않도록
+    // 경기 테이블에서 먼저 필터링하고 각 경기의 참가자 전원을 가져옵니다.
     let query = supabase
-      .from("match_players")
-      .select("*, matches!inner(started_at, version_season, version_major, version_minor)")
-      .gte("matches.started_at", since);
+      .from("matches")
+      .select("game_id, started_at, version_season, version_major, version_minor, match_players(*)")
+      .gte("started_at", since)
+      .order("game_id", { ascending: true });
 
     if (patch) {
       query = query
-        .eq("matches.version_season", patch.version_season)
-        .eq("matches.version_major", patch.version_major)
-        .eq("matches.version_minor", patch.version_minor);
+        .eq("version_season", patch.version_season)
+        .eq("version_major", patch.version_major)
+        .eq("version_minor", patch.version_minor);
     }
 
     const { data, error } = await query.range(from, to);
     if (error) throw error;
-    players.push(...(data ?? []));
-    if (!data || data.length < SNAPSHOT_PAGE_SIZE) break;
+    for (const match of data ?? []) {
+      const { match_players: matchPlayers, ...matches } = match;
+      players.push(...(matchPlayers ?? []).map((player) => ({ ...player, matches })));
+    }
+    if (!data || data.length < matchPageSize) break;
   }
 
   return players;

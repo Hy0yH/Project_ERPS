@@ -1,6 +1,11 @@
 import { ER_TARGET_PATCH } from "@/lib/env";
 import type { PatchVersion } from "@/lib/types";
 
+// 공식 12.4 업데이트 점검 시작 시각. 첫 표본이 늦게 수집되어도 패치 초반 경기를 포함합니다.
+const PATCH_STARTS: Record<string, string> = {
+  "12.4.0": "2026-09-17T02:00:00.000Z"
+};
+
 export async function getActivePatch(supabase: any): Promise<PatchVersion | null> {
   const configuredPatch = parsePatchKey(ER_TARGET_PATCH);
   const latestPatch = await getLatestStoredPatch(supabase);
@@ -78,7 +83,8 @@ export async function getStoredPatchInfo(
     version_season: versionSeason,
     version_major: versionMajor,
     version_minor: versionMinor,
-    patch_start_at: String(firstPatchMatch?.started_at ?? ""),
+    patch_start_at: PATCH_STARTS[formatPatchKey(versionSeason, versionMajor, versionMinor)] ??
+      String(firstPatchMatch?.started_at ?? ""),
     latest_match_at: String(latestPatchMatch?.started_at ?? "")
   };
 }

@@ -3,6 +3,7 @@ import type { PatchChange } from "@/lib/types";
 export const PATCH_12_2_SOURCE_URL = "https://playeternalreturn.com/posts/news/3783?hl=ko-KR";
 export const PATCH_12_2B_SOURCE_URL = "https://playeternalreturn.com/posts/news/3801?hl=ko-KR";
 export const PATCH_12_3_SOURCE_URL = "https://playeternalreturn.com/posts/news/3813?hl=ko-KR";
+export const PATCH_12_4_SOURCE_URL = "https://playeternalreturn.com/posts/news/3838?hl=ko-KR";
 
 type BundledPatchChange = Omit<PatchChange, "reviewed"> & { reviewed: true };
 
@@ -72,11 +73,71 @@ function patch12_3Change(
   };
 }
 
+function patch12_4Change(
+  characterCode: number,
+  changeType: "buff" | "nerf" | "bugfix",
+  targetName: string,
+  rawChangeText: string,
+  weaponCodes?: number[]
+): BundledPatchChange {
+  return {
+    patch_version: "12.4",
+    character_code: characterCode,
+    weapon_codes: weaponCodes,
+    change_type: changeType,
+    target_type: "character",
+    target_name: targetName,
+    before_value: null,
+    after_value: null,
+    raw_change_text: rawChangeText,
+    // 아디나의 수정은 과도하게 적용되던 피해량을 낮추므로 추천 영향은 하향입니다.
+    impact_score: changeType === "buff" ? 2 : -2,
+    reviewed: true
+  };
+}
+
 /**
  * 공식 패치노트의 일반 모드 실험체 밸런스 변경입니다.
  * 코발트 프로토콜 전용 보정과 무기·방어구를 통한 간접 변경은 포함하지 않습니다.
  */
 export const BUNDLED_PATCH_CHANGES: BundledPatchChange[] = [
+  // 2026-09-17 12.4 일반 모드 실험체 밸런스 변경
+  patch12_4Change(6, "nerf", "늑대 맹습(R)", "이동 속도 감소 30% → 25%"),
+  patch12_4Change(81, "buff", "아케이드 드롭(Q)", "경로 피해 스킬 증폭 계수 40% → 45%"),
+  patch12_4Change(33, "nerf", "다혈질(P)", "기본 피해량 60/85/110 → 60/80/100"),
+  patch12_4Change(37, "buff", "레벨 당 방어력", "레벨 당 방어력 2.8 → 3"),
+  patch12_4Change(65, "buff", "지금이야, 데비!(마를렌 E)", "에어본 지속 시간 0.5초 → 0.55초"),
+  patch12_4Change(48, "nerf", "알록달록 컬러믹스(P)", "마법의 다람쥐(파란색+노란색) 피해 스킬 증폭 계수 95% → 90%"),
+  patch12_4Change(47, "nerf", "우아한 발걸음(E)", "쿨다운 17/16/15/14/13초 → 19/17.5/16/14.5/13초"),
+  patch12_4Change(29, "nerf", "잠영(E)", "피해 스킬 증폭 계수 75% → 65%"),
+  patch12_4Change(90, "buff", "영애의 소양(P) / 총사의 예법(R)", "이동 속도 증가 시간 0.75초 → 1초 · 기절 지속 시간 0.7초 → 0.8초"),
+  patch12_4Change(10, "buff", "술 뿌리기(E)", "피해 공격력 계수 90% → 100%"),
+  patch12_4Change(85, "buff", "크래시 해머(Q) / 파워 히트(E2)", "강화 기절 지속 시간 0.65초 → 0.7초 · 강화 추가 피해의 리펄스 게이지 계수 40% → 50%"),
+  patch12_4Change(25, "nerf", "저격총 무기 숙련도", "레벨 당 공격 속도 2.8% → 2.4%", [11]),
+  patch12_4Change(88, "buff", "뚝딱!(Q)", "피해 공격력 계수 9/18/27/36/45% → 10/20/30/40/50%"),
+  patch12_4Change(73, "nerf", "레벨 당 방어력 / 기적 실현(R)", "레벨 당 방어력 3.2 → 2.9 · 쿨다운 80/70/60초 → 80/75/70초"),
+  patch12_4Change(15, "nerf", "투척 무기 숙련도", "레벨 당 스킬 증폭 4.6% → 4.5%", [5]),
+  patch12_4Change(15, "buff", "암기 무기 숙련도", "레벨 당 스킬 증폭 4% → 4.2%", [6]),
+  patch12_4Change(16, "buff", "스페어휠(E)", "최소 피해 스킬 증폭 계수 50% → 60% · 최대 피해 스킬 증폭 계수 110% → 132%"),
+  patch12_4Change(17, "nerf", "기름 뿌리기(W)", "충전 시간 13/12.5/12/11.5/11초 → 14/13.5/13/12.5/12초"),
+  patch12_4Change(52, "bugfix", "폴 디그니티(E)", "12.3에서 2타에도 잘못 적용되던 피해량 상향을 정상화 (피해량 하향)"),
+  patch12_4Change(67, "buff", "디멘션 스트라이크(R)", "피해 스킬 증폭 계수 85% → 95% · 이동 속도 감소 지속 시간 0.2초 → 0.3초"),
+  patch12_4Change(9, "buff", "Mok제 폭탄(R)", "피해 스킬 증폭 계수 65% → 70%"),
+  patch12_4Change(59, "buff", "현장 급습(Q)", "피해 공격력 계수 70% → 80%"),
+  patch12_4Change(27, "nerf", "타겟 마커(원거리 W)", "피해 공격력 계수 80% → 70%"),
+  patch12_4Change(46, "buff", "낙뢰(R)", "1차 피해량 60/90/120(+공격력의 75%) → 70/100/130(+공격력의 80%) · 2차 피해 공격력 계수 80% → 90%"),
+  patch12_4Change(44, "nerf", "VF 폭주(R) - 독사의 진노[블랙맘바]", "기본 피해량 50/120/175/220 → 50/120/160/200 · 피해 추가 체력 계수 14% → 10%"),
+  patch12_4Change(19, "nerf", "Change★(R) - 토끼", "변이 지속 시간 1초 → 0.9초"),
+  patch12_4Change(32, "nerf", "캐치볼(P)", "피해 공격력 계수 110/117/124% → 110/115/120%"),
+  patch12_4Change(77, "buff", "경운(E)", "피해 스킬 증폭 계수 50% → 55%"),
+  patch12_4Change(80, "nerf", "경로 적분(E)", "방어력 감소 15% → 12%"),
+  patch12_4Change(5, "nerf", "레벨 당 체력", "레벨 당 체력 79 → 76"),
+  patch12_4Change(70, "nerf", "레벨 당 체력 / 레벨 당 공격력", "레벨 당 체력 75 → 73 · 레벨 당 공격력 4.6 → 4.4"),
+  patch12_4Change(23, "nerf", "이머전시 OP(R)", "최소 기본 피해량 100/175/250 → 100/160/220 · 최대 기본 피해량 200/350/500 → 200/320/440"),
+  patch12_4Change(62, "buff", "증폭 스크린(W)", "피해 스킬 증폭 계수 26% → 28%"),
+  patch12_4Change(56, "buff", "쌍절난격(Q1)", "피해 스킬 증폭 계수 14% → 15%"),
+  patch12_4Change(58, "buff", "40mm 유탄(Q)", "피해 스킬 증폭 계수 85% → 90%"),
+  patch12_4Change(7, "buff", "레벨 당 체력", "레벨 당 체력 89 → 92"),
   // 2026-09-03 12.3 일반 모드 실험체 밸런스 변경
   patch12_3Change(76, "nerf", "억누른 고통(W) / 처형식(R)", "억누른 고통(W) 받는 피해 감소 50% → 45% · 처형식(R) 속박 지속 시간 0.8초 → 0.7초"),
   patch12_3Change(6, "nerf", "늑대 맹습(R)", "늑대 맹습(R) 추가 공격력 계수 80% → 75%", [8]),
@@ -205,6 +266,7 @@ export function patchChangeLabel(type: PatchChange["change_type"]) {
 }
 
 export function patchSourceUrl(patchVersion: string) {
+  if (patchVersion === "12.4") return PATCH_12_4_SOURCE_URL;
   if (patchVersion === "12.3") return PATCH_12_3_SOURCE_URL;
   if (patchVersion === "12.2b") return PATCH_12_2B_SOURCE_URL;
   if (patchVersion === "12.2") return PATCH_12_2_SOURCE_URL;
