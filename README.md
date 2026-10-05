@@ -4,6 +4,23 @@
 
 이터널 리턴 랭크 스쿼드 경기 데이터를 수집해 실험체·무기별 메타, 2인/3인 조합, 패치 영향, 개인화 픽 추천과 플레이스타일 분석을 제공하는 웹 애플리케이션입니다. 기본 메타 화면은 미스릴 이상 표본을 사용하며, 실험체 티어 화면에서 수집 전체 또는 티어별 범위를 선택할 수 있습니다.
 
+## 시작 패치와 업데이트 이력
+
+ERPS의 최초 수집 기준 패치는 **12.1.0**입니다. 2026-08-19에 추가된 [초기 수집 설정](https://github.com/Hy0yH/Project_ERPS/blob/884390d068ec1462e359a8621d2361221dd4726d/.env.example)에 `ER_TARGET_PATCH=12.1.0`이 기록되어 있습니다. 2026-10-05 DB 확인 기준으로 현재 시즌의 가장 오래된 저장 경기도 12.1.0이며, 경기 시작 시각은 2026-08-13 15:03 KST입니다. 이 시각은 보관된 경기의 시작 시각이며, 수집 작업을 처음 실행한 시각을 의미하지 않습니다.
+
+공식 버프·너프 변경 이력은 **12.2부터** 누적하고 있으며, 현재 사이트의 기준 패치는 **12.5.0**입니다. 아래 날짜는 게임 패치 출시일이 아닌 프로젝트에 변경을 반영한 날짜(KST)입니다.
+
+| 프로젝트 반영일 | 게임 패치 | 반영 내용 | Git 기록 |
+| --- | --- | --- | --- |
+| 2026-06-12 | 초기 MVP | 메타·추천 화면, API, DB 및 경기 수집 구조 구현 | [db09e90](https://github.com/Hy0yH/Project_ERPS/commit/db09e90e90b420a6c80a74ed14b10d71481467b2) |
+| 2026-08-19 | 12.1.0 | 수집 기준 패치 지정, 실험체·무기별 메타와 플레이어 분석 확장 | [884390d](https://github.com/Hy0yH/Project_ERPS/commit/884390d068ec1462e359a8621d2361221dd4726d) |
+| 2026-09-04 | 12.2 / 12.2b | 공식 실험체 밸런스 변경 이력 추가, 수집 기준을 12.2.0으로 전환 | [da2fea7](https://github.com/Hy0yH/Project_ERPS/commit/da2fea745c4dcd657c119efb5454d02aa9adef08) |
+| 2026-09-07 | 12.3 | 실험체 밸런스 변경 이력 추가 | [4004459](https://github.com/Hy0yH/Project_ERPS/commit/40044591a93789d9db553c1d4e8696071020fd8a) |
+| 2026-09-18 | 12.4 | 실험체 밸런스 변경 반영, 예약 수집 기준 전환 | [b1e75b3](https://github.com/Hy0yH/Project_ERPS/commit/b1e75b33a1d9a132d624aac6882177984e2deb05) |
+| 2026-10-05 | 12.5 | 실험체 밸런스 변경 반영, 대문·수집·집계 기준 전환 및 기존 데이터 보존 | [0adaaf3](https://github.com/Hy0yH/Project_ERPS/commit/0adaaf3a791d9d46cfe5d154cb2a266e312eff0e) |
+
+누적 변경 내역의 공식 출처: [12.2](https://playeternalreturn.com/posts/news/3783?hl=ko-KR), [12.2b](https://playeternalreturn.com/posts/news/3801?hl=ko-KR), [12.3](https://playeternalreturn.com/posts/news/3813?hl=ko-KR), [12.4](https://playeternalreturn.com/posts/news/3838?hl=ko-KR), [12.5](https://playeternalreturn.com/posts/news/3867?hl=ko-KR).
+
 ## 주요 기능
 
 - 현재 패치 기준 실험체·무기별 게임 수, 승률, TOP3, 평균 순위와 티어 제공
