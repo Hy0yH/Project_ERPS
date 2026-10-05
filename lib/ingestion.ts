@@ -2,6 +2,7 @@ import {
   ER_ANALYSIS_PEER_GAME_LIMIT,
   ER_ANALYSIS_PLAYER_MATCH_LIMIT,
   ER_COLLECTION_MAX_NEW_MATCHES,
+  ER_COLLECTION_TIME_BUDGET_MINUTES,
   ER_DISCOVERY_RANKERS_PER_RUN,
   ER_DISCOVERY_TIME_BUDGET_MINUTES,
   ER_PLAYER_MATCH_LIMIT,
@@ -23,6 +24,8 @@ import {
   getRows
 } from "@/lib/eternal-return";
 import { getActivePatch, matchesPatch } from "@/lib/patch-version";
+import { discoverRankerGames, isRankedSquad } from "@/lib/ranker-discovery";
+import { collectionStatePath, loadCollectionState, saveCollectionState } from "@/lib/collection-state";
 import { resolveAnalysisSeason } from "@/lib/analysis-season";
 import {
   DEFAULT_RANK_SCOPE,
@@ -216,6 +219,18 @@ async function syncCharacterWeaponArchetypes(rows: Array<{
 }
 
 export async function collectRankerMatches() {
+  if (rankerCollectionRunning) throw new CollectionBusyError();
+  rankerCollectionRunning = true;
+  try { return await runRankerCollection(); }
+  finally { rankerCollectionRunning = false; }
+}
+
+let rankerCollectionRunning = false;
+export class CollectionBusyError extends Error {
+  constructor() { super("Ranker collection is already running"); }
+}
+
+async function runRankerCollection() {
   const supabase = getSupabaseAdmin();
   const seasonId = process.env.ER_SEASON_ID;
   if (!seasonId) throw new Error("ER_SEASON_ID is required");
@@ -228,6 +243,9 @@ export async function collectRankerMatches() {
   if (run.error) throw run.error;
 
   let savedMatches = 0;
+  const startedAt = Date.now();
+  const deadline = startedAt + Math.max(1, ER_COLLECTION_TIME_BUDGET_MINUTES) * 60 * 1000;
+  const processedIds = new Set<number>();
   try {
     await syncCharacters();
     const activePatch = await getActivePatch(supabase);
@@ -236,7 +254,9 @@ export async function collectRankerMatches() {
     const queueResult = await processQueuedMatches(
       supabase,
       activePatch,
-      ER_COLLECTION_MAX_NEW_MATCHES
+      ER_COLLECTION_MAX_NEW_MATCHES,
+      deadline,
+      processedIds
     );
     savedMatches = queueResult.savedMatches;
 
@@ -253,12 +273,16 @@ export async function collectRankerMatches() {
       cursorByIdentity,
       ER_DISCOVERY_RANKERS_PER_RUN
     );
-    const discoveryDeadline =
-      Date.now() + Math.max(1, ER_DISCOVERY_TIME_BUDGET_MINUTES) * 60 * 1000;
+    const discoveryDeadline = Math.min(deadline,
+      Date.now() + Math.max(1, ER_DISCOVERY_TIME_BUDGET_MINUTES) * 60 * 1000);
+    const stateFile = collectionStatePath();
+    const checkpoints = await loadCollectionState(stateFile);
     let attemptedUsers = 0;
     let skippedMissingIdentifier = 0;
     let failedRankers = 0;
     let discoveryTimeBudgetReached = false;
+    let resumedRankers = 0;
+    let discoveryPages = 0;
     const candidateGameIds = new Set<number>();
     const queuedGameIds = new Set<number>();
     const existingGameIds = new Set<number>();
@@ -280,52 +304,26 @@ export async function collectRankerMatches() {
         const previousCursor =
           cursorByIdentity.get(resolved.userId) ??
           cursorByIdentity.get(nicknameCursorKey(nickname));
-        const previousLatestGameId = previousCursor?.latestGameId ?? null;
+        const discovered = await discoverRankerGames({
+          userId: resolved.userId,
+          seasonId: Number(seasonId),
+          patch: activePatch,
+          latestGameId: previousCursor?.latestGameId ?? null,
+          checkpoint: checkpoints[resolved.userId],
+          backfill: Boolean(stateFile),
+          limit: ER_RANKER_MATCH_LIMIT,
+          deadline: discoveryDeadline
+        });
+        if (checkpoints[resolved.userId]?.nextGameId) resumedRankers += 1;
+        discoveryPages += discovered.pages;
+        discoveryTimeBudgetReached ||= discovered.deadlineReached;
         const rankerCandidates = new Map<number, CandidateGame>();
-        let newestGameId: number | null = null;
-        let inspectedForRanker = 0;
-        let next: number | undefined;
-        let stopRanker = false;
-        let interruptedByDeadline = false;
-        while (!stopRanker && inspectedForRanker < ER_RANKER_MATCH_LIMIT) {
-          if (Date.now() >= discoveryDeadline) {
-            discoveryTimeBudgetReached = true;
-            interruptedByDeadline = true;
-            break;
-          }
-          const page = await fetchUserGamesPageByUserId(resolved.userId, next);
-          const games = page.userGames ?? [];
-          if (!games.length) break;
-          for (const gameRow of games) {
-            const gameId = Number(gameRow.gameId ?? gameRow.game_id);
-            if (gameId && previousLatestGameId && gameId === previousLatestGameId) {
-              stopRanker = true;
-              break;
-            }
-            if (!isRankedSquad(gameRow) || !isConfiguredSeason(gameRow)) continue;
-            if (!matchesPatch(gameRow, activePatch)) {
-              if (isOlderThanPatchStart(gameRow, activePatch)) stopRanker = true;
-              continue;
-            }
-            inspectedForRanker += 1;
-            if (gameId) {
-              newestGameId ??= gameId;
-              candidateGameIds.add(gameId);
-              rankerCandidates.set(gameId, {
-                gameId,
-                gameRow,
-                sourceUserId: resolved.userId,
-                sourceNickname: nickname
-              });
-            }
-            if (inspectedForRanker >= ER_RANKER_MATCH_LIMIT) {
-              stopRanker = true;
-              break;
-            }
-          }
-          const nextCursor = getNextCursor(page as Record<string, unknown>);
-          if (stopRanker || !nextCursor || nextCursor === next) break;
-          next = nextCursor;
+        for (const gameRow of discovered.games) {
+          const gameId = Number(gameRow.gameId ?? gameRow.game_id);
+          if (candidateGameIds.has(gameId)) continue;
+          rankerCandidates.set(gameId, {
+            gameId, gameRow, sourceUserId: resolved.userId, sourceNickname: nickname
+          });
         }
 
         const completeForRanker = await findCompleteAnalysisGameIds(
@@ -336,31 +334,46 @@ export async function collectRankerMatches() {
         const queueCandidates = [...rankerCandidates.values()].filter(
           (candidate) => !completeForRanker.has(candidate.gameId)
         );
-        for (const candidate of queueCandidates) queuedGameIds.add(candidate.gameId);
         await enqueueCandidateGames(supabase, queueCandidates);
+        // DB 저장이 실패한 후보는 다른 랭커에서 다시 발견해도 재시도할 수 있어야 합니다.
+        for (const gameId of rankerCandidates.keys()) candidateGameIds.add(gameId);
+        for (const candidate of queueCandidates) queuedGameIds.add(candidate.gameId);
 
-        if (!interruptedByDeadline) {
+        if (stateFile && !discovered.complete) {
+          checkpoints[resolved.userId] = discovered.checkpoint;
+          await saveCollectionState(stateFile, checkpoints);
+        }
+        if (discovered.pages > 0) {
           const lastScannedAt = new Date().toISOString();
           await upsertCollectionCursors(supabase, [{
             external_user_id: resolved.userId,
             nickname,
             mmr: Number(ranker.mmr ?? ranker.mmrAfter ?? 0),
-            latest_game_id: newestGameId ?? previousLatestGameId,
+            latest_game_id: discovered.latestGameId,
             last_scanned_at: lastScannedAt
           }]);
           const cursorState = {
-            latestGameId: newestGameId ?? previousLatestGameId,
+            latestGameId: discovered.latestGameId,
             lastScannedAt
           };
           cursorByIdentity.set(resolved.userId, cursorState);
           cursorByIdentity.set(nicknameCursorKey(nickname), cursorState);
+        }
+        if (stateFile && discovered.complete) {
+          checkpoints[resolved.userId] = discovered.checkpoint;
+          await saveCollectionState(stateFile, checkpoints);
         }
       } catch {
         failedRankers += 1;
       }
     }
 
-    const failedMatches = queueResult.failedMatches;
+    // 이번 실행에서 찾은 경기도 남은 처리 예산으로 즉시 저장합니다.
+    const newQueueResult = await processQueuedMatches(supabase, activePatch,
+      Math.max(0, ER_COLLECTION_MAX_NEW_MATCHES - processedIds.size), deadline, processedIds);
+    savedMatches += newQueueResult.savedMatches;
+    const failedMatches = queueResult.failedMatches + newQueueResult.failedMatches;
+    const collectionTimeBudgetReached = Date.now() >= deadline;
     const skippedExistingMatches = existingGameIds.size;
     const pendingMatches = await countPendingQueueItems(supabase, activePatch);
     const warnings = [
@@ -371,7 +384,8 @@ export async function collectRankerMatches() {
       failedMatches ? `${failedMatches} queued matches failed and will be retried.` : "",
       discoveryTimeBudgetReached
         ? `Ranker discovery stopped at the ${ER_DISCOVERY_TIME_BUDGET_MINUTES}-minute budget and will resume next run.`
-        : ""
+        : "",
+      collectionTimeBudgetReached ? "Collection time budget reached; remaining work is preserved for the next run." : ""
     ].filter(Boolean).join(" ") || null;
 
     await supabase
@@ -395,7 +409,13 @@ export async function collectRankerMatches() {
       pendingMatches,
       cappedNewMatches: pendingMatches,
       selectedRankers: rankersForDiscovery.length,
-      discoveryTimeBudgetReached
+      discoveryTimeBudgetReached,
+      collectionTimeBudgetReached,
+      processedMatches: processedIds.size,
+      skippedUnwantedMatches: queueResult.skippedUnwantedMatches + newQueueResult.skippedUnwantedMatches,
+      resumedRankers,
+      discoveryPages,
+      elapsedSeconds: Math.round((Date.now() - startedAt) / 1000)
     };
   } catch (error) {
     await supabase
@@ -804,7 +824,7 @@ async function hasCompleteAnalysisGame(
   return Number(count ?? 0) >= 8;
 }
 
-async function findCompleteAnalysisGameIds(
+export async function findCompleteAnalysisGameIds(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   gameIds: number[]
 ) {
@@ -812,15 +832,17 @@ async function findCompleteAnalysisGameIds(
   for (let index = 0; index < gameIds.length; index += 500) {
     const batch = gameIds.slice(index, index + 500);
     if (!batch.length) continue;
-    const { data, error } = await supabase
-      .from("match_players")
-      .select("game_id")
-      .in("game_id", batch)
-      .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION);
-    if (error) throw error;
-    for (const row of data ?? []) {
-      const gameId = Number(row.game_id);
-      playerCounts.set(gameId, (playerCounts.get(gameId) ?? 0) + 1);
+    for (let from = 0; ; from += SNAPSHOT_PAGE_SIZE) {
+      const { data, error } = await supabase.from("match_players").select("game_id")
+        .in("game_id", batch).gte("analysis_data_version", PLAYER_ANALYSIS_VERSION)
+        .order("game_id", { ascending: true }).order("user_num", { ascending: true })
+        .range(from, from + SNAPSHOT_PAGE_SIZE - 1);
+      if (error) throw error;
+      for (const row of data ?? []) {
+        const gameId = Number(row.game_id);
+        playerCounts.set(gameId, (playerCounts.get(gameId) ?? 0) + 1);
+      }
+      if (!data || data.length < SNAPSHOT_PAGE_SIZE) break;
     }
   }
   return new Set(
@@ -931,7 +953,7 @@ async function fetchQueueWork(
     .limit(limit);
   // 이전 패치의 대기열은 보존하되 새 패치 수집을 지연시키지 않습니다.
   if (activePatch?.patch_start_at) {
-    query = query.gte("game_started_at", activePatch.patch_start_at);
+    query = query.or(`game_started_at.gte.${activePatch.patch_start_at},game_started_at.is.null`);
   }
   const { data, error } = await query;
   if (error) throw error;
@@ -944,25 +966,44 @@ async function fetchQueueWork(
 async function processQueuedMatches(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   activePatch: PatchVersion | null,
-  limit: number
+  limit: number,
+  deadline: number,
+  processedIds: Set<number>
 ) {
-  const queueWork = await fetchQueueWork(supabase, limit, activePatch);
+  if (limit <= 0 || Date.now() >= deadline) return { savedMatches: 0, failedMatches: 0, skippedUnwantedMatches: 0 };
+  const queueWork = (await fetchQueueWork(supabase, limit + processedIds.size, activePatch))
+    .filter((item) => !processedIds.has(item.game_id)).slice(0, limit);
   const alreadySavedQueueIds = await findCompleteAnalysisGameIds(
     supabase,
     queueWork.map((item) => item.game_id)
   );
   let savedMatches = 0;
   let failedMatches = 0;
+  let skippedUnwantedMatches = 0;
 
   for (const item of queueWork) {
+    if (Date.now() >= deadline) break;
+    processedIds.add(item.game_id);
     if (alreadySavedQueueIds.has(item.game_id)) {
       await completeQueueItem(supabase, item.game_id);
       continue;
     }
 
-    await beginQueueItem(supabase, item);
+    if (!(await beginQueueItem(supabase, item))) continue;
     try {
       const detail = await fetchGame(item.game_id);
+      const players = getRows(detail, "gamePlayers").length ? getRows(detail, "gamePlayers")
+        : getRows(detail, "userGames").length ? getRows(detail, "userGames") : getRows(detail, "players");
+      const first = players[0];
+      if (!first || Number(first.gameId ?? detail.gameId ?? detail.game_id) !== item.game_id) {
+        throw new Error(`Incomplete or mismatched game detail for ${item.game_id}`);
+      }
+      if (!isRankedSquad(first) || !isConfiguredSeason(first) || !matchesPatch(first, activePatch)) {
+        await completeQueueItem(supabase, item.game_id);
+        skippedUnwantedMatches += 1;
+        continue;
+      }
+      if (players.length < 8) throw new Error(`Incomplete ranked game detail for ${item.game_id}: ${players.length} players`);
       await saveGame(detail, { patch: activePatch });
       await completeQueueItem(supabase, item.game_id);
       savedMatches += 1;
@@ -972,14 +1013,14 @@ async function processQueuedMatches(
     }
   }
 
-  return { savedMatches, failedMatches };
+  return { savedMatches, failedMatches, skippedUnwantedMatches };
 }
 
 async function beginQueueItem(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   item: QueueWorkItem
 ) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("match_ingestion_queue")
     .update({
       status: "processing",
@@ -987,8 +1028,13 @@ async function beginQueueItem(
       updated_at: new Date().toISOString(),
       last_error: null
     })
-    .eq("game_id", item.game_id);
+    .eq("game_id", item.game_id)
+    .in("status", ["pending", "failed"])
+    .eq("attempts", item.attempts)
+    .select("game_id")
+    .maybeSingle();
   if (error) throw error;
+  return Boolean(data);
 }
 
 async function completeQueueItem(
@@ -1034,7 +1080,7 @@ async function countPendingQueueItems(
     .in("status", ["pending", "failed"])
     .lte("attempts", 3);
   if (activePatch?.patch_start_at) {
-    query = query.gte("game_started_at", activePatch.patch_start_at);
+    query = query.or(`game_started_at.gte.${activePatch.patch_start_at},game_started_at.is.null`);
   }
   const { count, error } = await query;
   if (error) throw error;
@@ -1059,9 +1105,10 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
     : getRows(payload, "userGames").length
       ? getRows(payload, "userGames")
       : getRows(payload, "players");
-  if (!players.length) return;
+  if (!players.length) throw new Error("Game detail contains no players");
   const first = players[0];
   const gameId = Number(first.gameId ?? payload.gameId ?? payload.game_id);
+  if (!Number.isSafeInteger(gameId) || gameId <= 0) throw new Error("Game detail contains an invalid game ID");
 
   const match = {
     game_id: gameId,
@@ -1360,6 +1407,13 @@ function buildCharacterSnapshotRows(
   });
 }
 
+const SNAPSHOT_PLAYER_COLUMNS = [
+  "game_id", "user_num", "team_number", "character_code", "game_rank", "player_kill", "player_assistant",
+  "mmr_after", "mmr_gain", "best_weapon", "analysis_data_version", "play_time", "team_kill",
+  "damage_to_player", "cc_time_to_player", "monster_kill", "damage_to_monster", "best_weapon_level",
+  "total_gain_vf_credit", "team_recover", "protect_absorb", "view_contribution:equipment->__analysis->viewContribution"
+].join(",");
+
 export async function fetchSnapshotPlayers(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   since: string,
@@ -1368,15 +1422,19 @@ export async function fetchSnapshotPlayers(
   const players: any[] = [];
   const matchPageSize = 100;
 
-  for (let from = 0; ; from += matchPageSize) {
-    const to = from + matchPageSize - 1;
+  let afterGameId = 0;
+  for (;;) {
     // 패치 초반 소수 표본을 찾기 위해 전체 참가자 테이블을 스캔하지 않도록
     // 경기 테이블에서 먼저 필터링하고 각 경기의 참가자 전원을 가져옵니다.
     let query = supabase
       .from("matches")
-      .select("game_id, started_at, version_season, version_major, version_minor, match_players(*)")
+      .select(`game_id, started_at, version_season, version_major, version_minor, match_players(${SNAPSHOT_PLAYER_COLUMNS})`)
       .gte("started_at", since)
+      .eq("matching_mode", 3)
+      .eq("matching_team_mode", 3)
+      .gt("game_id", afterGameId)
       .order("game_id", { ascending: true });
+    if (ER_SEASON_ID) query = query.eq("season_id", ER_SEASON_ID);
 
     if (patch) {
       query = query
@@ -1385,13 +1443,17 @@ export async function fetchSnapshotPlayers(
         .eq("version_minor", patch.version_minor);
     }
 
-    const { data, error } = await query.range(from, to);
+    const { data, error } = await query.limit(matchPageSize);
     if (error) throw error;
-    for (const match of data ?? []) {
+    const matchRows = (data ?? []) as unknown as any[];
+    for (const match of matchRows) {
       const { match_players: matchPlayers, ...matches } = match;
-      players.push(...(matchPlayers ?? []).map((player) => ({ ...player, matches })));
+      players.push(...(matchPlayers ?? []).map((player: any) => ({ ...player, matches })));
     }
-    if (!data || data.length < matchPageSize) break;
+    if (matchRows.length < matchPageSize) break;
+    const lastGameId = Number(matchRows.at(-1)?.game_id);
+    if (lastGameId <= afterGameId || !Number.isSafeInteger(lastGameId)) throw new Error("Snapshot pagination did not advance");
+    afterGameId = lastGameId;
   }
 
   return players;
@@ -1490,10 +1552,6 @@ function combinations<T>(values: T[], size: number): T[][] {
   return values.flatMap((value, index) =>
     combinations(values.slice(index + 1), size - 1).map((tail) => [value, ...tail])
   );
-}
-
-function isRankedSquad(row: Record<string, unknown>) {
-  return Number(row.matchingTeamMode ?? row.matching_team_mode ?? RANKED_SQUAD_MODE) === RANKED_SQUAD_MODE;
 }
 
 function isConfiguredSeason(row: Record<string, unknown>) {

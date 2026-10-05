@@ -4,6 +4,7 @@ import {
   fetchSnapshotPlayers,
   selectRankersForDiscovery,
   splitSnapshotPlayers,
+  findCompleteAnalysisGameIds,
   type CollectionCursorState
 } from "@/lib/ingestion";
 
@@ -41,10 +42,10 @@ describe("snapshot player selection", () => {
   it("reuses stored 12.5 games with an October 1 boundary and exact version filters", async () => {
     const filters: unknown[][] = [];
     const query: any = {
-      select: () => query, order: () => query,
+      select: () => query, order: () => query, gt: () => query,
       gte: (column: string, value: unknown) => { filters.push([column, value]); return query; },
       eq: (column: string, value: unknown) => { filters.push([column, value]); return query; },
-      range: async () => ({ data: [{
+      limit: async () => ({ data: [{
         game_id: 100,
         started_at: "2026-10-01T08:00:00Z",
         version_season: 12, version_major: 5, version_minor: 0,
@@ -57,6 +58,7 @@ describe("snapshot player selection", () => {
     });
     expect(filters).toEqual([
       ["started_at", "2026-10-01T02:00:00.000Z"],
+      ["matching_mode", 3], ["matching_team_mode", 3],
       ["version_season", 12], ["version_major", 5], ["version_minor", 0]
     ]);
     expect(rows[0].game_id).toBe(100);
@@ -71,16 +73,15 @@ describe("snapshot player selection", () => {
         game_id: index + 1, user_num: player + 1, team_number: Math.floor(player / 3)
       }))
     }));
-    const ranges: number[][] = [];
+    const afterIds: number[] = [];
+    let afterId = 0;
     const query: any = {
       select: () => query, gte: () => query, eq: () => query, order: () => query,
-      range: async (from: number, to: number) => {
-        ranges.push([from, to]);
-        return { data: matches.slice(from, to + 1), error: null };
-      }
+      gt: (_column: string, value: number) => { afterId = value; afterIds.push(value); return query; },
+      limit: async (size: number) => ({ data: matches.filter((match) => match.game_id > afterId).slice(0, size), error: null })
     };
     const rows = await fetchSnapshotPlayers({ from: () => query } as any, "2026-09-17T02:00:00Z", null);
-    expect(ranges).toEqual([[0, 99], [100, 199]]);
+    expect(afterIds).toEqual([0, 100]);
     expect(rows).toHaveLength(2424);
     expect(rows.filter((row) => row.game_id === 101)).toHaveLength(24);
     expect(rows[0].matches.version_major).toBe(4);
@@ -102,6 +103,26 @@ describe("snapshot player selection", () => {
       "teammate-a",
       "teammate-b"
     ]);
+  });
+});
+
+describe("stored game completeness", () => {
+  it("finds complete games beyond Supabase's first 1000 participant rows", async () => {
+    const participants = Array.from({ length: 100 }, (_, index) =>
+      Array.from({ length: 24 }, () => ({ game_id: index + 1 }))).flat();
+    const ranges: number[][] = [];
+    const query: any = {
+      select: () => query, in: () => query, gte: () => query, order: () => query,
+      range: async (from: number, to: number) => {
+        ranges.push([from, to]);
+        return { data: participants.slice(from, to + 1), error: null };
+      }
+    };
+    const complete = await findCompleteAnalysisGameIds({ from: () => query } as any,
+      Array.from({ length: 100 }, (_, index) => index + 1));
+    expect(complete.size).toBe(100);
+    expect(complete.has(100)).toBe(true);
+    expect(ranges).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
   });
 });
 

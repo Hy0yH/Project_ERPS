@@ -36,6 +36,8 @@ export const ER_DISCOVERY_TIME_BUDGET_MINUTES = getOptionalNumberEnv(
   "ER_DISCOVERY_TIME_BUDGET_MINUTES",
   45
 );
+export const ER_COLLECTION_TIME_BUDGET_MINUTES = getOptionalNumberEnv("ER_COLLECTION_TIME_BUDGET_MINUTES", 60);
+export const ER_REQUEST_TIMEOUT_MS = getOptionalNumberEnv("ER_REQUEST_TIMEOUT_MS", 30000);
 export const ER_REQUEST_DELAY_MS = getOptionalNumberEnv("ER_REQUEST_DELAY_MS", 1000);
 export const ER_MAX_RETRIES = getOptionalNumberEnv("ER_MAX_RETRIES", 2);
 export const ER_PLAYER_MATCH_LIMIT = getOptionalNumberEnv("ER_PLAYER_MATCH_LIMIT", 5000);

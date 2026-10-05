@@ -1,4 +1,4 @@
-import { ER_BATCH_LIMIT, ER_MAX_RETRIES, ER_REQUEST_DELAY_MS, MIN_MYTHRIL_MMR } from "@/lib/env";
+import { ER_BATCH_LIMIT, ER_MAX_RETRIES, ER_REQUEST_DELAY_MS, ER_REQUEST_TIMEOUT_MS, MIN_MYTHRIL_MMR } from "@/lib/env";
 
 const ER_API_BASE = "https://open-api.bser.io";
 const RANKED_SQUAD_TEAM_MODE = 3;
@@ -35,65 +35,42 @@ export function isNicknameNotFoundError(error: unknown) {
 }
 
 async function erFetch<T>(path: string): Promise<T> {
-  const key = process.env.ETERNAL_RETURN_API_KEY;
-  if (!key) throw new Error("ETERNAL_RETURN_API_KEY is required");
-
-  let lastStatus = "";
-  for (let attempt = 0; attempt <= ER_MAX_RETRIES; attempt += 1) {
-    if (attempt > 0) {
-      await delay(getBackoffMs(attempt));
-    }
-
-    const response = await scheduledFetch(`${ER_API_BASE}${path}`, key);
-
-    if (response.status === 429 && attempt < ER_MAX_RETRIES) {
-      const retryAfter = Number(response.headers.get("retry-after"));
-      await delay(Number.isFinite(retryAfter) ? retryAfter * 1000 : getBackoffMs(attempt + 1));
-      lastStatus = `${response.status} ${response.statusText}`;
-      continue;
-    }
-
-    if (!response.ok) {
-      throw new EternalReturnApiError(path, response.status, response.statusText);
-    }
-
-    const json = (await readErJson(response)) as ErEnvelope<T> | T;
-    if (typeof json === "object" && json && "code" in json && json.code !== 200) {
-      throw new EternalReturnApiError(path, Number(json.code ?? 500), json.message ?? String(json.code));
-    }
-    return unwrapEnvelope(json);
-  }
-
-  throw new Error(`Eternal Return API failed at ${path}: ${lastStatus || "unknown error"}`);
+  return unwrapEnvelope(await erFetchEnvelope<T>(path));
 }
 
 async function erFetchEnvelope<T>(path: string): Promise<ErEnvelope<T>> {
   const key = process.env.ETERNAL_RETURN_API_KEY;
   if (!key) throw new Error("ETERNAL_RETURN_API_KEY is required");
 
-  let lastStatus = "";
   for (let attempt = 0; attempt <= ER_MAX_RETRIES; attempt += 1) {
-    if (attempt > 0) await delay(getBackoffMs(attempt));
-
-    const response = await scheduledFetch(`${ER_API_BASE}${path}`, key);
-    if (response.status === 429 && attempt < ER_MAX_RETRIES) {
-      const retryAfter = Number(response.headers.get("retry-after"));
-      await delay(Number.isFinite(retryAfter) ? retryAfter * 1000 : getBackoffMs(attempt + 1));
-      lastStatus = `${response.status} ${response.statusText}`;
-      continue;
+    let response: Response | undefined;
+    try {
+      response = await scheduledFetch(`${ER_API_BASE}${path}`, key);
+      if (!response.ok) throw new EternalReturnApiError(path, response.status, response.statusText);
+      const json = (await readErJson(response)) as ErEnvelope<T>;
+      if (typeof json === "object" && json && "code" in json && json.code !== 200) {
+        throw new EternalReturnApiError(path, Number(json.code ?? 500), json.message ?? String(json.code));
+      }
+      return json;
+    } catch (error) {
+      const transient = error instanceof EternalReturnApiError
+        ? error.status === 403 || error.status === 429 || error.status >= 500
+        : error instanceof TypeError || (error instanceof Error && /TimeoutError|AbortError/.test(error.name));
+      if (!transient || attempt >= ER_MAX_RETRIES) throw error;
+      const wait = retryAfterMs(response?.headers.get("retry-after") ?? null) ?? getBackoffMs(attempt + 1);
+      // 요청 제한이 걸리면 다른 요청도 함께 쉬어, 재시도 중 추가 제한을 피합니다.
+      nextRequestAt = Math.max(nextRequestAt, Date.now() + wait);
     }
-    if (!response.ok) {
-      throw new EternalReturnApiError(path, response.status, response.statusText);
-    }
-
-    const json = (await readErJson(response)) as ErEnvelope<T>;
-    if (typeof json === "object" && json && "code" in json && json.code !== 200) {
-      throw new EternalReturnApiError(path, Number(json.code ?? 500), json.message ?? String(json.code));
-    }
-    return json;
   }
+  throw new Error(`Eternal Return API failed at ${path}`);
+}
 
-  throw new Error(`Eternal Return API failed at ${path}: ${lastStatus || "unknown error"}`);
+export function retryAfterMs(value: string | null, now = Date.now()) {
+  if (!value?.trim()) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(0, date - now) : null;
 }
 
 function unwrapEnvelope<T>(json: ErEnvelope<T> | T): T {
@@ -174,7 +151,7 @@ export async function fetchKoreanL10n() {
   const l10Path = typeof payload.l10Path === "string" ? payload.l10Path : null;
   if (!l10Path) return payload as Record<string, string>;
 
-  const response = await fetch(l10Path, { next: { revalidate: 0 } });
+  const response = await fetch(l10Path, { next: { revalidate: 0 }, signal: AbortSignal.timeout(ER_REQUEST_TIMEOUT_MS) });
   if (!response.ok) {
     throw new Error(`Eternal Return l10n file failed: ${response.status} ${response.statusText}`);
   }
@@ -234,18 +211,23 @@ export async function readErJson(response: Pick<Response, "text">) {
 
 let requestQueue: Promise<void> = Promise.resolve();
 let lastRequestAt = 0;
+let nextRequestAt = 0;
 
 function scheduledFetch(url: string, key: string) {
   const run = requestQueue.then(async () => {
-    const waitMs = Math.max(0, lastRequestAt + ER_REQUEST_DELAY_MS - Date.now());
-    if (waitMs) await delay(waitMs);
+    for (;;) {
+      const waitMs = Math.max(0, Math.max(nextRequestAt, lastRequestAt + ER_REQUEST_DELAY_MS) - Date.now());
+      if (!waitMs) break;
+      await delay(waitMs);
+    }
     lastRequestAt = Date.now();
     return fetch(url, {
       headers: {
         "x-api-key": key,
         accept: "application/json"
       },
-      next: { revalidate: 0 }
+      next: { revalidate: 0 },
+      signal: AbortSignal.timeout(ER_REQUEST_TIMEOUT_MS)
     });
   });
   requestQueue = run.then(
@@ -256,7 +238,7 @@ function scheduledFetch(url: string, key: string) {
 }
 
 function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, Math.ceil(ms)));
 }
 
 function getBackoffMs(attempt: number) {

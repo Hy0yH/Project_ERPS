@@ -9,7 +9,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$ProjectDir = Resolve-Path (Join-Path $PSScriptRoot "..")
+$ProjectDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $StateDir = Join-Path $ProjectDir ".scheduler"
 $LogPath = Join-Path $StateDir "collect.log"
 $LockPath = Join-Path $StateDir "collect.lock"
@@ -22,7 +22,7 @@ New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 function Write-CollectLog {
   param([string]$Message)
   $line = "{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Message
-  Add-Content -Path $LogPath -Value $line
+  Add-Content -Path $LogPath -Value $line -Encoding UTF8
   Write-Output $line
 }
 
@@ -32,13 +32,13 @@ function Read-DotEnv {
   if (!(Test-Path $Path)) {
     return $values
   }
-  foreach ($line in Get-Content -Path $Path) {
+  foreach ($line in Get-Content -LiteralPath $Path -Encoding UTF8) {
     if (!$line -or $line.TrimStart().StartsWith("#") -or !$line.Contains("=")) {
       continue
     }
     $index = $line.IndexOf("=")
     $key = $line.Substring(0, $index).Trim()
-    $value = $line.Substring($index + 1).Trim()
+    $value = $line.Substring($index + 1).Trim().Trim('"').Trim("'")
     $values[$key] = $value
   }
   return $values
@@ -46,11 +46,41 @@ function Read-DotEnv {
 
 function Test-AppServer {
   try {
-    Invoke-WebRequest -Uri "$BaseUrl/api/health" -TimeoutSec 10 -UseBasicParsing | Out-Null
-    return $true
+    $script:ServerHealth = Invoke-RestMethod -Uri "$BaseUrl/api/health" -TimeoutSec 10
+    return $script:ServerHealth.status -eq "ok"
   } catch {
     return $false
   }
+}
+
+function Ensure-AppServer {
+  param([hashtable]$EnvValues)
+  if (!(Test-AppServer)) { Start-AppServer; return }
+  $buildPath = Join-Path $ProjectDir ".next\BUILD_ID"
+  $diskBuild = if (Test-Path -LiteralPath $buildPath) { (Get-Content -LiteralPath $buildPath -Raw).Trim() } else { "" }
+  $changed = $diskBuild -and $script:ServerHealth.buildId -ne $diskBuild
+  foreach ($property in $script:ServerHealth.collectionConfig.PSObject.Properties) {
+    if (!$EnvValues.ContainsKey($property.Name)) { continue }
+    if ($property.Value -is [string]) {
+      if ([string]$EnvValues[$property.Name] -cne [string]$property.Value) { $changed = $true }
+    } elseif ($EnvValues[$property.Name] -and [double]$EnvValues[$property.Name] -ne [double]$property.Value) {
+      $changed = $true
+    }
+  }
+  if (!$changed) { return }
+  if ($SkipServerStart) { throw "Collector build or configuration changed; restart the server." }
+  $connections = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+  $serverPids = @($connections | Select-Object -ExpandProperty OwningProcess -Unique)
+  foreach ($serverPid in $serverPids) {
+    $serverProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $serverPid"
+    if (!$serverProcess -or $serverProcess.CommandLine -notmatch [regex]::Escape($ProjectDir) -or $serverProcess.CommandLine -notmatch 'next.*start') {
+      throw "Port $Port belongs to an unverified process; collector restart aborted."
+    }
+  }
+  if (!$serverPids.Count) { throw "Cannot identify the collector process on port $Port." }
+  Write-CollectLog "Collector build or configuration changed. Restarting the verified server."
+  foreach ($serverPid in $serverPids) { Stop-Process -Id $serverPid -Force }
+  Start-AppServer
 }
 
 function Start-AppServer {
@@ -115,23 +145,42 @@ if ($DryRun) {
   Write-Output "MaxNewMatches=$($envValues['ER_COLLECTION_MAX_NEW_MATCHES'])"
   Write-Output "DiscoveryRankersPerRun=$($envValues['ER_DISCOVERY_RANKERS_PER_RUN'])"
   Write-Output "DiscoveryTimeBudgetMinutes=$($envValues['ER_DISCOVERY_TIME_BUDGET_MINUTES'])"
+  Write-Output "CollectionTimeBudgetMinutes=$($envValues['ER_COLLECTION_TIME_BUDGET_MINUTES'])"
+  Write-Output "RequestTimeoutMs=$($envValues['ER_REQUEST_TIMEOUT_MS'])"
+  Write-Output "CollectionStatePath=$($envValues['ER_COLLECTION_STATE_PATH'])"
   Write-Output "RequestDelayMs=$($envValues['ER_REQUEST_DELAY_MS'])"
   exit 0
 }
 
 $lockMaxAge = [TimeSpan]::FromSeconds($CollectTimeoutSec + $SnapshotTimeoutSec + 1800)
 if (Test-Path $LockPath) {
+  $lockText = Get-Content -LiteralPath $LockPath -Raw
+  $lockOwnerAlive = $false
+  if ($lockText -match '^pid=(\d+);') {
+    $lockProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($Matches[1])" -ErrorAction SilentlyContinue
+    $lockOwnerAlive = $lockProcess -and $lockProcess.CommandLine -match [regex]::Escape($PSCommandPath)
+  }
   $lockAge = (Get-Date) - (Get-Item $LockPath).LastWriteTime
-  if ($lockAge -lt $lockMaxAge) {
+  if ($lockOwnerAlive -or (!$lockText -and $lockAge -lt $lockMaxAge)) {
     Write-CollectLog "Another collection appears to be running. Skipping this schedule tick."
     exit 0
   }
-  Write-CollectLog "Removing stale lock file."
+  Write-CollectLog "Removing lock file left by a stopped collection process."
   Remove-Item -LiteralPath $LockPath -Force
 }
 
 try {
-  Set-Content -Path $LockPath -Value ("pid={0}; started={1}" -f $PID, (Get-Date).ToString("o"))
+  $lockStream = [System.IO.File]::Open($LockPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+} catch [System.IO.IOException] {
+  if (!(Test-Path -LiteralPath $LockPath)) { throw }
+  Write-CollectLog "Another process acquired the collection lock. Skipping this schedule tick."
+  exit 0
+}
+
+try {
+  $lockBytes = [System.Text.Encoding]::UTF8.GetBytes(("pid={0}; started={1}" -f $PID, (Get-Date).ToString("o")))
+  $lockStream.Write($lockBytes, 0, $lockBytes.Length)
+  $lockStream.Flush()
 
   $envValues = Read-DotEnv (Join-Path $ProjectDir ".env.local")
   $secret = $envValues["CRON_SECRET"]
@@ -143,9 +192,7 @@ try {
   }
   $headers = @{ Authorization = "Bearer $secret" }
 
-  if (!(Test-AppServer)) {
-    Start-AppServer
-  }
+  Ensure-AppServer -EnvValues $envValues
 
   Write-CollectLog (
     "Scheduled collection started. season={0} minMmr={1} batch={2} perRanker={3} maxNew={4} discoveryRankers={5} discoveryMinutes={6} targetPatch={7}" -f `
@@ -159,12 +206,19 @@ try {
       $envValues["ER_TARGET_PATCH"]
   )
   Invoke-CronPost -Path "/api/cron/collect-rankers" -TimeoutSec $CollectTimeoutSec -Headers $headers
-  Invoke-CronPost -Path "/api/cron/build-snapshots" -TimeoutSec $SnapshotTimeoutSec -Headers $headers
+  try {
+    Invoke-CronPost -Path "/api/cron/build-snapshots" -TimeoutSec $SnapshotTimeoutSec -Headers $headers
+  } catch {
+    Write-CollectLog ("Snapshot failed; retrying once: " + $_.Exception.Message)
+    Start-Sleep -Seconds 15
+    Invoke-CronPost -Path "/api/cron/build-snapshots" -TimeoutSec $SnapshotTimeoutSec -Headers $headers
+  }
   Write-CollectLog "Scheduled collection finished."
 } catch {
   Write-CollectLog ("ERROR: " + $_.Exception.Message)
   exit 1
 } finally {
+  $lockStream.Dispose()
   if (Test-Path $LockPath) {
     Remove-Item -LiteralPath $LockPath -Force
   }

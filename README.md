@@ -96,7 +96,10 @@ Copy-Item .env.example .env.local
 | `ER_COLLECTION_MAX_NEW_MATCHES` | `1000` | 실행당 큐에서 처리할 최대 경기 |
 | `ER_DISCOVERY_RANKERS_PER_RUN` | `120` | 실행당 새 경기를 탐색할 랭커 수 |
 | `ER_DISCOVERY_TIME_BUDGET_MINUTES` | `45` | 랭커 탐색 시간 제한 |
+| `ER_COLLECTION_TIME_BUDGET_MINUTES` | `60` | 큐 처리와 탐색을 합한 실행 시간 제한 |
+| `ER_COLLECTION_STATE_PATH` | `.scheduler/collection-state.json` | 로컬 탐색 이어받기 파일. `disabled`이면 사용하지 않으며 Vercel에서는 자동 비활성화 |
 | `ER_REQUEST_DELAY_MS` | `1000` | Eternal Return API 요청 간격(ms) |
+| `ER_REQUEST_TIMEOUT_MS` | `30000` | API 요청별 응답 시간 제한(ms) |
 | `ER_MAX_RETRIES` | `2` | API 재시도 횟수 |
 | `ER_RECOMMEND_PLAYER_MATCH_LIMIT` | `5000` | 개인 추천 프로필 최대 수집 경기 |
 | `ER_RECOMMEND_MIN_SAMPLE_GAMES` | `10` | 추천 보통 신뢰도 최소 표본 |
@@ -154,10 +157,15 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:3000/api/cron/build-snapsh
 1. 실험체와 `CharacterMastery`를 동기화합니다.
 2. 이전 실행에서 남은 `match_ingestion_queue`를 먼저 처리합니다.
 3. 오래 확인하지 않은 랭커부터 제한된 인원·시간 범위에서 새 경기 ID를 찾습니다.
-4. 발견한 경기는 큐에 저장하고, 랭커별 마지막 확인 지점은 `ranker_collection_cursors`에 기록합니다.
-5. 상세 경기와 참가자를 저장한 뒤 현재 패치의 실험체·무기 메타, 조합, MMR 벤치마크를 생성합니다.
+4. 발견한 경기는 큐에 저장하고, 랭커별 마지막 확인 지점은 `ranker_collection_cursors`에 기록합니다. 로컬에서는 탐색 한도·시간 제한에 도달한 다음 페이지를 `.scheduler/collection-state.json`에 저장해 다음 실행에서 이어받습니다.
+5. 남은 처리 한도와 시간 안에서 이번 실행 중 새로 발견한 경기까지 즉시 저장합니다.
+6. 상세 경기와 참가자를 저장한 뒤 현재 패치의 실험체·무기 메타, 조합, MMR 벤치마크를 생성합니다.
 
-처리되지 않은 큐는 다음 실행에서 이어집니다. 허용되지 않은 실험체·무기 숙련 조합은 스냅샷에서 제외되며, 실험체 메타는 전체·단일 티어·특정 티어 이상 범위로 생성됩니다. 2인/3인 조합은 미스릴 이상 플레이어가 포함된 완성 스쿼드를 기준으로 집계됩니다.
+처리되지 않은 큐는 다음 실행에서 이어집니다. 로컬 이어받기 상태가 없는 랭커는 현재 패치 시작까지 한 번 소급 탐색해 과거 탐색 한도로 놓친 경기를 보완하고, 이후에는 새 경기만 증분 탐색합니다. 탐색 한도는 페이지 단위로 적용하므로 마지막 페이지의 경기 수만큼 설정값을 초과할 수 있습니다. 이어받기 파일은 GitHub에 올리지 않으며, 이 파일을 삭제하면 해당 패치 소급 탐색을 다시 시작합니다.
+
+[공식 API의 모드 코드](https://developer.eternalreturn.io/static/media/OpenAPI_EN_20260917_01.html)에 따라 `matchingMode=3`인 랭크 스쿼드만 수집·집계합니다. 허용되지 않은 실험체·무기 숙련 조합은 스냅샷에서 제외되며, 실험체 메타는 전체·단일 티어·특정 티어 이상 범위로 생성됩니다. 2인/3인 조합은 미스릴 이상 플레이어가 포함된 완성 스쿼드를 기준으로 집계됩니다.
+
+저장 완료 확인은 DB의 1,000행 응답 제한을 넘어서도 모든 참가자를 조회해 같은 경기를 불필요하게 다시 받지 않습니다. 집계는 경기 ID로 이어받으며 필요한 지표와 시야 기여 값만 조회해 전송량을 줄입니다. 통신 오류, 응답 시간 초과, 403/429 요청 제한 및 5xx 오류는 제한된 횟수로 재시도하며, 요청 제한 시 전체 요청 대기열에 같은 대기 시간을 적용합니다. 비어 있거나 다른 경기의 상세 응답은 저장 완료로 처리하지 않습니다.
 
 배치 작업은 한 번에 오래 실행될 수 있으므로 Vercel Cron에는 등록하지 않습니다. 아래 Windows 예약 작업이 계속 Supabase 데이터를 갱신하며, Vercel에 배포된 웹사이트는 같은 Supabase 데이터를 읽습니다.
 
@@ -174,7 +182,7 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:3000/api/cron/build-snapsh
 
 ## Windows 로컬 자동 수집
 
-현재 운영 수집 대상은 12.5.0입니다. 패치 12.5의 수집 시작 경계는 공식 점검 시작 시각인 2026-10-01 11:00 KST이며, 경기 버전으로 12.5 표본만 선별합니다. 이미 저장된 해당 패치 경기는 그대로 사용해 스냅샷을 재집계하며, 이전 패치 경기·스냅샷·대기열과 랭커별 수집 커서를 보존합니다. 대문과 메타 화면은 현재 패치의 집계만 표시하고, 아직 집계가 없으면 이전 패치 통계를 표시하지 않습니다. `.env.local`에 `ER_TARGET_PATCH`를 지정한다면 `12.5.0`을 사용하세요. 환경 변수나 코드를 바꾼 뒤에는 전용 수집 서버를 재시작해야 적용됩니다.
+현재 운영 수집 대상은 12.5.0입니다. 패치 12.5의 수집 시작 경계는 공식 점검 시작 시각인 2026-10-01 11:00 KST이며, 경기 버전으로 12.5 표본만 선별합니다. 이미 저장된 해당 패치 경기는 그대로 사용해 스냅샷을 재집계하며, 이전 패치 경기·스냅샷·대기열과 랭커별 수집 커서를 보존합니다. 대문과 메타 화면은 현재 패치의 집계만 표시하고, 아직 집계가 없으면 이전 패치 통계를 표시하지 않습니다. `.env.local`에 `ER_TARGET_PATCH`를 지정한다면 `12.5.0`을 사용하세요. 예약 작업은 새 빌드나 수집 설정 변경을 감지하면 해당 프로젝트의 전용 서버인지 확인한 후 자동으로 재시작합니다.
 
 예약 작업은 별도의 Next.js 프로덕션 서버를 `3101` 포트에 실행하고, 2시간마다 수집과 스냅샷 생성을 순서대로 호출합니다.
 
@@ -191,7 +199,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\collect-scheduled.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-collection-schedule.ps1 -IntervalMinutes 120 -Port 3101 -RunNow
 ```
 
-환경에 따라 예약 작업 등록 권한이 필요할 수 있습니다. 중복 실행은 잠금 파일로 차단하며, 오래된 잠금은 자동 정리합니다. 로그는 `.scheduler/collect.log`, 전용 서버 출력은 `.scheduler/next-dev.out.log`와 `.scheduler/next-dev.err.log`에서 확인할 수 있습니다.
+환경에 따라 예약 작업 등록 권한이 필요할 수 있습니다. 중복 실행은 원자적으로 생성하는 잠금 파일과 서버 내부 실행 검사로 차단하며, 종료된 프로세스의 잠금은 다음 실행에서 정리합니다. 경기 큐도 상태·시도 횟수를 확인하며 선점해 다른 작업과 중복 처리하지 않습니다. 집계 실패 시 한 번 재시도합니다. 로그는 UTF-8로 저장하며 `.scheduler/collect.log`, 전용 서버 출력은 `.scheduler/next-dev.out.log`와 `.scheduler/next-dev.err.log`에서 확인할 수 있습니다. 실행 결과에는 이어받은 랭커 수, 탐색 페이지 수, 처리 시간과 시간 제한 도달 여부가 포함됩니다.
 
 ```powershell
 Get-Content .\.scheduler\collect.log -Tail 80
