@@ -4,6 +4,7 @@ export const PATCH_12_2_SOURCE_URL = "https://playeternalreturn.com/posts/news/3
 export const PATCH_12_2B_SOURCE_URL = "https://playeternalreturn.com/posts/news/3801?hl=ko-KR";
 export const PATCH_12_3_SOURCE_URL = "https://playeternalreturn.com/posts/news/3813?hl=ko-KR";
 export const PATCH_12_4_SOURCE_URL = "https://playeternalreturn.com/posts/news/3838?hl=ko-KR";
+export const PATCH_12_5_SOURCE_URL = "https://playeternalreturn.com/posts/news/3867?hl=ko-KR";
 
 type BundledPatchChange = Omit<PatchChange, "reviewed"> & { reviewed: true };
 
@@ -96,11 +97,72 @@ function patch12_4Change(
   };
 }
 
+function patch12_5Change(
+  characterCode: number,
+  changeType: "buff" | "nerf" | "bugfix",
+  targetName: string,
+  rawChangeText: string,
+  weaponCodes?: number[],
+  impactScore = changeType === "nerf" ? -2 : 2
+): BundledPatchChange {
+  return {
+    patch_version: "12.5",
+    character_code: characterCode,
+    weapon_codes: weaponCodes,
+    change_type: changeType,
+    target_type: "character",
+    target_name: targetName,
+    before_value: null,
+    after_value: null,
+    raw_change_text: rawChangeText,
+    impact_score: impactScore,
+    reviewed: true
+  };
+}
+
 /**
  * 공식 패치노트의 일반 모드 실험체 밸런스 변경입니다.
  * 코발트 프로토콜 전용 보정과 무기·방어구를 통한 간접 변경은 포함하지 않습니다.
  */
 export const BUNDLED_PATCH_CHANGES: BundledPatchChange[] = [
+  // 2026-10-01 12.5 일반 모드 실험체 밸런스 변경
+  patch12_5Change(81, "bugfix", "1UP(E)", "이동 속도 증가 지속 시간 정상화: 1초 → 2초"),
+  patch12_5Change(33, "bugfix", "가드&카운터(W)", "적에게 적용된 이동 속도 감소 효과가 지속 시간에 걸쳐 회복되도록 수정", undefined, -2),
+  patch12_5Change(33, "nerf", "분노의 어퍼컷!(R)", "기본 피해량 100/180/260 → 80/155/230"),
+  patch12_5Change(37, "nerf", "단검 무기 숙련도", "레벨 당 기본 공격 증폭 2.2% → 2.1%", [15]),
+  patch12_5Change(20, "nerf", "휩쓸기(E)", "이동 속도 감소 지속 시간 1.25초 → 1초"),
+  patch12_5Change(22, "buff", "애프터 서비스(R)", "표식 피해 공격력 계수 13% → 15%"),
+  patch12_5Change(31, "nerf", "하나레(W) - 단궁 / 연사(R) - 단궁", "이동 속도 감소 30% → 25% · 벽 충돌 시 기절 지속 시간 1.2초 → 1초"),
+  patch12_5Change(53, "bugfix", "지각변동(R)", "이동 속도 감소 지속 시간 정상화: 1초 → 1.5초"),
+  patch12_5Change(4, "buff", "강타(E)", "벽 충돌 피해 추가 공격력 계수 30% → 40% · 스킬 증폭 계수 30% → 35% · 대상 최대 체력 계수 7% → 8%"),
+  patch12_5Change(26, "buff", "초고출력 이온 레이저(RW)", "기본 피해량 200/250/300 → 200/300/400 · 적중 시 이동 속도 증가 40% → 50%"),
+  patch12_5Change(84, "buff", "기본 방어력", "기본 방어력 47 → 50"),
+  patch12_5Change(88, "nerf", "신명나게 놀아보자!(R)", "기본 피해량 150/300/450 → 120/270/420"),
+  patch12_5Change(73, "nerf", "아르카나 무기 숙련도", "레벨 당 스킬 증폭 4.4% → 4.3%", [24]),
+  patch12_5Change(73, "nerf", "레벨 당 방어력", "레벨 당 방어력 2.9 → 2.6"),
+  patch12_5Change(28, "nerf", "파랑새(W)", "보호막 스킬 증폭 계수 40% → 35%"),
+  patch12_5Change(17, "nerf", "투척 무기 숙련도", "레벨 당 스킬 증폭 4.1% → 4%", [5]),
+  patch12_5Change(17, "nerf", "화염 난사(R)", "기본 피해량 140/170/200 → 130/155/180"),
+  patch12_5Change(66, "buff", "님루드의 비석(E/RE)", "피해 스킬 증폭 계수 60% → 65% (님루드의 문(RE)에도 적용)"),
+  patch12_5Change(2, "buff", "2연발(Q) / 고정 사격(W)", "1타 피해 공격력 계수 100% → 110% (기본 공격 증폭 적용) · 피해 공격력 계수 50% → 55%"),
+  patch12_5Change(9, "buff", "유격전(P)", "맞춤형 능력치 증가 8/13/18 → 10/15/20"),
+  patch12_5Change(35, "buff", "니 스트라이크(Q)", "강화 시 방어력 감소량 15% → 20%"),
+  patch12_5Change(50, "buff", "크리스탈 엘레강스(Q)", "1타 피해 스킬 증폭 계수 25% → 35% · 2타 피해 스킬 증폭 계수 35% → 40%, 추가 체력 계수 10% → 12%"),
+  patch12_5Change(79, "nerf", "레벨 당 체력", "레벨 당 체력 79 → 76"),
+  patch12_5Change(11, "nerf", "양손검 무기 숙련도", "레벨 당 기본 공격 증폭 2.2% → 2.1%", [16]),
+  patch12_5Change(11, "nerf", "쌍검 무기 숙련도", "레벨 당 기본 공격 증폭 1.8% → 1.7%", [18]),
+  patch12_5Change(80, "nerf", "관측(Q)", "피해 및 다른 가능성 피해 공격력 계수 100% → 90%"),
+  patch12_5Change(39, "nerf", "레이피어 무기 숙련도", "레벨 당 기본 공격 증폭 1.3% → 1.2%", [21]),
+  patch12_5Change(23, "nerf", "쌍검 무기 숙련도", "레벨 당 스킬 증폭 4.6% → 4.5%", [18]),
+  patch12_5Change(89, "nerf", "쇼다운!(R)", "기본 피해량 150/235/320 → 130/205/280"),
+  patch12_5Change(14, "buff", "부정의 손길(Q)", "체력 회복 스킬 증폭 계수 4% → 6%"),
+  patch12_5Change(86, "buff", "찢는 손톱(Q)", "강화 시 기본 체력 회복량 40/65/90/115/140 → 50/80/110/140/170"),
+  patch12_5Change(51, "buff", "기타 무기 숙련도", "레벨 당 스킬 증폭 4.3% → 4.4% · 레벨 당 공격 속도 2% → 2.8%", [22]),
+  patch12_5Change(3, "bugfix", "뚜셰(P)", "이동 속도 증가 지속 시간 정상화: 1.5초 → 2초"),
+  patch12_5Change(8, "buff", "Overdrive(W)", "공격력 증가 5/10/15/20/25 → 6/12/18/24/30"),
+  patch12_5Change(7, "buff", "발 밟기(Q)", "기본 피해량 50/100/150/200/250 → 90/130/170/210/250 · 쿨다운 9/8/7/6/5초 → 7/6.5/6/5.5/5초"),
+  patch12_5Change(12, "buff", "삼재(P)", "피해 스킬 증폭 계수 10/15/20% → 15/20/25%"),
+  patch12_5Change(78, "buff", "쾌연격(Q)", "1타 피해 추가 공격력 계수 70/75/80/85/90% → 75/80/85/90/95% · 2타 피해 추가 공격력 계수 100/105/110/115/120% → 105/110/115/120/125%"),
   // 2026-09-17 12.4 일반 모드 실험체 밸런스 변경
   patch12_4Change(6, "nerf", "늑대 맹습(R)", "이동 속도 감소 30% → 25%"),
   patch12_4Change(81, "buff", "아케이드 드롭(Q)", "경로 피해 스킬 증폭 계수 40% → 45%"),
@@ -266,6 +328,7 @@ export function patchChangeLabel(type: PatchChange["change_type"]) {
 }
 
 export function patchSourceUrl(patchVersion: string) {
+  if (patchVersion === "12.5") return PATCH_12_5_SOURCE_URL;
   if (patchVersion === "12.4") return PATCH_12_4_SOURCE_URL;
   if (patchVersion === "12.3") return PATCH_12_3_SOURCE_URL;
   if (patchVersion === "12.2b") return PATCH_12_2B_SOURCE_URL;

@@ -554,12 +554,20 @@ async function getLatestSnapshotInfo(
   periodDays: number,
   rankScope: RankScope = DEFAULT_RANK_SCOPE
 ) {
-  const { data, error } = await supabase
+  const patch = await getActivePatch(supabase);
+  let query = supabase
     .from(table)
     .select("period_start, period_end")
     .eq("period_days", periodDays)
     .eq("rank_scope", rankScope)
-    .order("period_end", { ascending: false })
+    .order("period_end", { ascending: false });
+  if (patch?.patch_start_at) {
+    query = query.gte("period_start", patch.patch_start_at);
+    if (table === "character_stats_snapshot") {
+      query = query.eq("tier_filter", `current_patch:${patch.patch_key}`);
+    }
+  }
+  const { data, error } = await query
     .limit(1)
     .maybeSingle();
   if (error) throw error;

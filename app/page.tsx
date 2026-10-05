@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SearchBox } from "@/components/SearchBox";
 import { SetupNotice } from "@/components/SetupNotice";
+import { getTargetPatchKey } from "@/lib/patch-version";
 import {
   getCharacterMeta,
   getSnapshotSummary,
@@ -41,7 +42,7 @@ export default async function HomePage() {
       <section className="metrics-strip">
         <div className="metric metric-cell">
           <span className="muted">기준 패치</span>
-          <strong>{snapshotSummary?.patch_key ? `v${snapshotSummary.patch_key}` : "-"}</strong>
+          <strong>v{snapshotSummary?.patch_key ?? getTargetPatchKey()}</strong>
         </div>
         <div className="metric metric-cell">
           <span className="muted">캐릭터 표본</span>

@@ -38,6 +38,30 @@ describe("incremental ranker discovery", () => {
 });
 
 describe("snapshot player selection", () => {
+  it("reuses stored 12.5 games with an October 1 boundary and exact version filters", async () => {
+    const filters: unknown[][] = [];
+    const query: any = {
+      select: () => query, order: () => query,
+      gte: (column: string, value: unknown) => { filters.push([column, value]); return query; },
+      eq: (column: string, value: unknown) => { filters.push([column, value]); return query; },
+      range: async () => ({ data: [{
+        game_id: 100,
+        started_at: "2026-10-01T08:00:00Z",
+        version_season: 12, version_major: 5, version_minor: 0,
+        match_players: [{ game_id: 100, user_num: 1 }]
+      }], error: null })
+    };
+    const rows = await fetchSnapshotPlayers({ from: () => query } as any, "2026-10-01T02:00:00.000Z", {
+      patch_key: "12.5.0", version_season: 12, version_major: 5, version_minor: 0,
+      patch_start_at: "2026-10-01T02:00:00.000Z", latest_match_at: ""
+    });
+    expect(filters).toEqual([
+      ["started_at", "2026-10-01T02:00:00.000Z"],
+      ["version_season", 12], ["version_major", 5], ["version_minor", 0]
+    ]);
+    expect(rows[0].game_id).toBe(100);
+  });
+
   it("paginates by matches without truncating complete teams at a player page boundary", async () => {
     const matches = Array.from({ length: 101 }, (_, index) => ({
       game_id: index + 1,

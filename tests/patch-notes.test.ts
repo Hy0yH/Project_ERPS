@@ -31,6 +31,40 @@ describe("patch note parser", () => {
 });
 
 describe("bundled patch changes", () => {
+  it("covers all 33 characters in the official 12.5 general-mode balance section", () => {
+    const changes = BUNDLED_PATCH_CHANGES.filter((change) => change.patch_version === "12.5");
+    expect([...new Set(changes.map((change) => change.character_code))].sort((a, b) => a - b)).toEqual([
+      2, 3, 4, 7, 8, 9, 11, 12, 14, 17, 20, 22, 23, 26, 28, 31, 33,
+      35, 37, 39, 50, 51, 53, 66, 73, 78, 79, 80, 81, 84, 86, 88, 89
+    ]);
+    expect(changes).toHaveLength(37);
+    expect(changes.filter((change) => change.change_type === "buff")).toHaveLength(16);
+    expect(changes.filter((change) => change.change_type === "nerf")).toHaveLength(17);
+    expect(changes.filter((change) => change.change_type === "bugfix")).toHaveLength(4);
+    expect(patchSourceUrl("12.5")).toContain("/posts/news/3867");
+  });
+
+  it("limits 12.5 mastery nerfs to the affected weapon", () => {
+    const changesFor = (character: number, weapon: number) => getBundledPatchChanges(character, weapon)
+      .filter((change) => change.patch_version === "12.5");
+    expect(changesFor(11, 16)[0].target_name).toBe("양손검 무기 숙련도");
+    expect(changesFor(11, 18)[0].target_name).toBe("쌍검 무기 숙련도");
+    expect(changesFor(39, 18)).toEqual([]);
+    expect(changesFor(39, 21)).toHaveLength(1);
+    expect(changesFor(23, 15)).toEqual([]);
+    expect(changesFor(23, 18)).toHaveLength(1);
+  });
+
+  it("preserves the direction of 12.5 combat bug fixes", () => {
+    for (const character of [81, 53, 3]) {
+      const change = getBundledPatchChanges(character).find((item) => item.patch_version === "12.5")!;
+      expect(change.change_type).toBe("bugfix");
+      expect(change.impact_score).toBeGreaterThan(0);
+    }
+    const guard = getBundledPatchChanges(33).find((item) => item.patch_version === "12.5" && item.change_type === "bugfix")!;
+    expect(guard.impact_score).toBeLessThan(0);
+  });
+
   it("covers the 35 characters in the 12.4 general-mode section", () => {
     const changes = BUNDLED_PATCH_CHANGES.filter((change) => change.patch_version === "12.4");
     expect(new Set(changes.map((change) => change.character_code)).size).toBe(35);
