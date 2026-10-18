@@ -27,6 +27,12 @@ export default async function CharacterDetailPage({
     item.weapon_code === requestedWeaponCode
   ) ?? meta.find((item) => item.character_code === characterCode);
   const patches = await getPatchHistory(characterCode, character?.weapon_code).catch(() => []);
+  const patchesByVersion = new Map<string, typeof patches>();
+  for (const patch of patches) {
+    const changes = patchesByVersion.get(patch.patch_version) ?? [];
+    changes.push(patch);
+    patchesByVersion.set(patch.patch_version, changes);
+  }
 
   return (
     <>
@@ -83,21 +89,23 @@ export default async function CharacterDetailPage({
         </div>
         <div className="span-6 stack">
           <h2>패치 히스토리</h2>
-          {patches.map((patch, index) => {
-            const sourceUrl = patchSourceUrl(patch.patch_version);
+          {[...patchesByVersion].map(([patchVersion, changes]) => {
+            const sourceUrl = patchSourceUrl(patchVersion);
+            const changeTypes = [...new Set(changes.map((change) => change.change_type))];
+            const cardType = changeTypes.length === 1 ? changeTypes[0] : "adjustment";
             return (
               <article
-                className={`item-card patch-change-card patch-${patch.change_type}`}
-                key={`${patch.patch_version}-${index}`}
+                className={`item-card patch-change-card patch-${cardType}`}
+                key={patchVersion}
               >
                 <div className="split">
-                  <strong>v{patch.patch_version}</strong>
-                  <span className={`badge patch-type patch-type-${patch.change_type}`}>
-                    {patchChangeLabel(patch.change_type)}
+                  <strong>v{patchVersion}</strong>
+                  <span className={`badge patch-type patch-type-${cardType}`}>
+                    {changeTypes.map(patchChangeLabel).join(" · ")}
                   </span>
                 </div>
                 <div className="patch-change-sections">
-                  {patchChangeSections(patch).map((section, sectionIndex) => (
+                  {changes.flatMap(patchChangeSections).map((section, sectionIndex) => (
                     <div className="patch-change-section" key={`${section.target}-${sectionIndex}`}>
                       {section.target ? <strong className="patch-target">{section.target}</strong> : null}
                       {section.details.map((detail, detailIndex) => (
