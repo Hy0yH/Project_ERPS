@@ -8,7 +8,7 @@
 
 ERPS의 최초 수집 기준 패치는 **12.1.0**입니다. 2026-08-19에 추가된 [초기 수집 설정](https://github.com/Hy0yH/Project_ERPS/blob/884390d068ec1462e359a8621d2361221dd4726d/.env.example)에 `ER_TARGET_PATCH=12.1.0`이 기록되어 있습니다. 2026-10-05 DB 확인 기준으로 현재 시즌의 가장 오래된 저장 경기도 12.1.0이며, 경기 시작 시각은 2026-08-13 15:03 KST입니다. 이 시각은 보관된 경기의 시작 시각이며, 수집 작업을 처음 실행한 시각을 의미하지 않습니다.
 
-공식 버프·너프 변경 이력은 **12.2부터** 누적하고 있으며, 현재 사이트의 기준 패치는 **12.5.0**입니다. 아래 날짜는 게임 패치 출시일이 아닌 프로젝트에 변경을 반영한 날짜(KST)입니다.
+공식 버프·너프 변경 이력은 **12.2부터** 누적하고 있으며, 현재 사이트의 기준 패치는 **12.6.0**입니다. 아래 날짜는 게임 패치 출시일이 아닌 프로젝트에 변경을 반영한 날짜(KST)입니다.
 
 | 프로젝트 반영일 | 게임 패치 | 반영 내용 | Git 기록 |
 | --- | --- | --- | --- |
@@ -18,8 +18,9 @@ ERPS의 최초 수집 기준 패치는 **12.1.0**입니다. 2026-08-19에 추가
 | 2026-09-07 | 12.3 | 실험체 밸런스 변경 이력 추가 | [4004459](https://github.com/Hy0yH/Project_ERPS/commit/40044591a93789d9db553c1d4e8696071020fd8a) |
 | 2026-09-18 | 12.4 | 실험체 밸런스 변경 반영, 예약 수집 기준 전환 | [b1e75b3](https://github.com/Hy0yH/Project_ERPS/commit/b1e75b33a1d9a132d624aac6882177984e2deb05) |
 | 2026-10-05 | 12.5 | 실험체 밸런스 변경 반영, 대문·수집·집계 기준 전환 및 기존 데이터 보존 | [0adaaf3](https://github.com/Hy0yH/Project_ERPS/commit/0adaaf3a791d9d46cfe5d154cb2a266e312eff0e) |
+| 2026-10-18 | 12.6 | 실험체 28종 밸런스 변경 32건 반영, 10월 15일 이후 12.6 경기 소급 수집·집계 및 예약 수집 기준 전환 | 이번 업데이트 |
 
-누적 변경 내역의 공식 출처: [12.2](https://playeternalreturn.com/posts/news/3783?hl=ko-KR), [12.2b](https://playeternalreturn.com/posts/news/3801?hl=ko-KR), [12.3](https://playeternalreturn.com/posts/news/3813?hl=ko-KR), [12.4](https://playeternalreturn.com/posts/news/3838?hl=ko-KR), [12.5](https://playeternalreturn.com/posts/news/3867?hl=ko-KR).
+누적 변경 내역의 공식 출처: [12.2](https://playeternalreturn.com/posts/news/3783?hl=ko-KR), [12.2b](https://playeternalreturn.com/posts/news/3801?hl=ko-KR), [12.3](https://playeternalreturn.com/posts/news/3813?hl=ko-KR), [12.4](https://playeternalreturn.com/posts/news/3838?hl=ko-KR), [12.5](https://playeternalreturn.com/posts/news/3867?hl=ko-KR), [12.6](https://playeternalreturn.com/posts/news/3898?hl=ko-KR).
 
 ## 주요 기능
 
@@ -80,7 +81,7 @@ Copy-Item .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | 서버의 DB 읽기·쓰기 |
 | `ER_SEASON_ID` | 수집할 공식 API 랭크 시즌 ID |
-| `ER_TARGET_PATCH` | 선택 사항. 코드에 반영된 현재 패치(12.5.0)와 DB의 최신 수집 패치를 기준으로 자동 전환하며, 이전 패치로 남은 설정은 현재 패치로 올립니다. |
+| `ER_TARGET_PATCH` | 선택 사항. 코드에 반영된 현재 패치(12.6.0)와 DB의 최신 수집 패치를 기준으로 자동 전환하며, 이전 패치로 남은 설정은 현재 패치로 올립니다. |
 | `ADMIN_TOKEN` | 패치노트 import 및 내부 통계 조회 보호 |
 | `CRON_SECRET` | 수집·스냅샷 API 보호 |
 
@@ -182,7 +183,7 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:3000/api/cron/build-snapsh
 
 ## Windows 로컬 자동 수집
 
-현재 운영 수집 대상은 12.5.0입니다. 패치 12.5의 수집 시작 경계는 공식 점검 시작 시각인 2026-10-01 11:00 KST이며, 경기 버전으로 12.5 표본만 선별합니다. 이미 저장된 해당 패치 경기는 그대로 사용해 스냅샷을 재집계하며, 이전 패치 경기·스냅샷·대기열과 랭커별 수집 커서를 보존합니다. 대문과 메타 화면은 현재 패치의 집계만 표시하고, 아직 집계가 없으면 이전 패치 통계를 표시하지 않습니다. `.env.local`에 `ER_TARGET_PATCH`를 지정한다면 `12.5.0`을 사용하세요. 예약 작업은 새 빌드나 수집 설정 변경을 감지하면 해당 프로젝트의 전용 서버인지 확인한 후 자동으로 재시작합니다.
+현재 운영 수집 대상은 12.6.0입니다. 패치 12.6의 수집 시작 경계는 공식 점검 시작 시각인 2026-10-15 11:00 KST이며, 경기 버전으로 12.6 표본만 선별합니다. 이미 저장된 해당 패치 경기는 그대로 사용해 스냅샷을 재집계하며, 이전 패치 경기·스냅샷·대기열과 랭커별 수집 커서를 보존합니다. 새 패치에서는 이전 패치의 로컬 탐색 이어받기 지점을 재사용하지 않고 최신 경기부터 10월 15일 경계까지 소급 탐색합니다. 대문과 메타 화면은 현재 패치의 집계만 표시하고, 아직 집계가 없으면 이전 패치 통계를 표시하지 않습니다. `.env.local`에 `ER_TARGET_PATCH`를 지정한다면 `12.6.0`을 사용하세요. 예약 작업은 새 빌드나 수집 설정 변경을 감지하면 해당 프로젝트의 전용 서버인지 확인한 후 자동으로 재시작합니다.
 
 예약 작업은 별도의 Next.js 프로덕션 서버를 `3101` 포트에 실행하고, 2시간마다 수집과 스냅샷 생성을 순서대로 호출합니다.
 

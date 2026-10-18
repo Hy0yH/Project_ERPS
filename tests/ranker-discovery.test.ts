@@ -43,6 +43,24 @@ describe("resumable ranker discovery", () => {
     expect(result.games.map((row) => row.gameId)).toEqual([9, 8, 7]);
   });
 
+  it("restarts at the newest page for 12.6 and backfills October 15 despite a 12.5 continuation", async () => {
+    const currentGame = (id: number, startDtm: string) => ({ ...game(id), versionMajor: 6, startDtm });
+    vi.mocked(fetchUserGamesPageByUserId).mockResolvedValue({ userGames: [
+      currentGame(12, "2026-10-18T00:00:00Z"),
+      currentGame(11, "2026-10-15T06:05:00Z"),
+      { ...game(10), startDtm: "2026-10-15T01:55:00Z" }
+    ], next: 9 });
+    const result = await discoverRankerGames({
+      ...options(), latestGameId: 11,
+      patch: { ...patch, patch_key: "12.6.0", version_major: 6, patch_start_at: "2026-10-15T02:00:00Z" },
+      checkpoint: { patchKey: "12.5.0", nextGameId: 5, boundaryGameId: 2, newestGameId: 10, backfillComplete: true }
+    });
+    expect(fetchUserGamesPageByUserId).toHaveBeenCalledWith("ranker", undefined);
+    expect(result.games.map((row) => row.gameId)).toEqual([12, 11]);
+    expect(result.complete).toBe(true);
+    expect(result.checkpoint).toMatchObject({ patchKey: "12.6.0", nextGameId: null, backfillComplete: true });
+  });
+
   it("uses incremental discovery after the current patch backfill is complete", async () => {
     vi.mocked(fetchUserGamesPageByUserId).mockResolvedValue({ userGames: [game(9), game(8), game(7)], next: 6 });
     const result = await discoverRankerGames({ ...options(), latestGameId: 8, checkpoint: {

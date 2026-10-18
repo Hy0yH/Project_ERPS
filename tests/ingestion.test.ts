@@ -39,7 +39,10 @@ describe("incremental ranker discovery", () => {
 });
 
 describe("snapshot player selection", () => {
-  it("reuses stored 12.5 games with an October 1 boundary and exact version filters", async () => {
+  it.each([
+    { major: 5, date: "2026-10-01" },
+    { major: 6, date: "2026-10-15" }
+  ])("reuses stored patch 12.$major games from $date with exact version filters", async ({ major, date }) => {
     const filters: unknown[][] = [];
     const query: any = {
       select: () => query, order: () => query, gt: () => query,
@@ -47,19 +50,19 @@ describe("snapshot player selection", () => {
       eq: (column: string, value: unknown) => { filters.push([column, value]); return query; },
       limit: async () => ({ data: [{
         game_id: 100,
-        started_at: "2026-10-01T08:00:00Z",
-        version_season: 12, version_major: 5, version_minor: 0,
+        started_at: `${date}T08:00:00Z`,
+        version_season: 12, version_major: major, version_minor: 0,
         match_players: [{ game_id: 100, user_num: 1 }]
       }], error: null })
     };
-    const rows = await fetchSnapshotPlayers({ from: () => query } as any, "2026-10-01T02:00:00.000Z", {
-      patch_key: "12.5.0", version_season: 12, version_major: 5, version_minor: 0,
-      patch_start_at: "2026-10-01T02:00:00.000Z", latest_match_at: ""
+    const rows = await fetchSnapshotPlayers({ from: () => query } as any, `${date}T02:00:00.000Z`, {
+      patch_key: `12.${major}.0`, version_season: 12, version_major: major, version_minor: 0,
+      patch_start_at: `${date}T02:00:00.000Z`, latest_match_at: ""
     });
     expect(filters).toEqual([
-      ["started_at", "2026-10-01T02:00:00.000Z"],
+      ["started_at", `${date}T02:00:00.000Z`],
       ["matching_mode", 3], ["matching_team_mode", 3],
-      ["version_season", 12], ["version_major", 5], ["version_minor", 0]
+      ["version_season", 12], ["version_major", major], ["version_minor", 0]
     ]);
     expect(rows[0].game_id).toBe(100);
   });

@@ -31,6 +31,28 @@ describe("patch note parser", () => {
 });
 
 describe("bundled patch changes", () => {
+  it("covers all 28 characters in the official 12.6 general-mode balance section", () => {
+    const changes = BUNDLED_PATCH_CHANGES.filter((change) => change.patch_version === "12.6");
+    expect([...new Set(changes.map((change) => change.character_code))].sort((a, b) => a - b)).toEqual([
+      4, 6, 9, 10, 13, 21, 26, 28, 36, 43, 45, 47, 51, 52,
+      59, 60, 62, 65, 66, 70, 71, 74, 82, 83, 84, 88, 90, 91
+    ]);
+    expect(changes).toHaveLength(32);
+    expect(changes.filter((change) => change.change_type === "buff")).toHaveLength(23);
+    expect(changes.filter((change) => change.change_type === "nerf")).toHaveLength(9);
+    expect(patchSourceUrl("12.6")).toBe("https://playeternalreturn.com/posts/news/3898?hl=ko-KR");
+  });
+
+  it("scopes 12.6 mastery changes to their weapon and keeps skill changes available", () => {
+    const changesFor = (character: number, weapon: number) => getBundledPatchChanges(character, weapon)
+      .filter((change) => change.patch_version === "12.6");
+    expect(changesFor(84, 18).map((change) => change.change_type)).toEqual(["nerf"]);
+    expect(changesFor(84, 21)).toEqual([]);
+    expect(changesFor(90, 11)).toHaveLength(2);
+    expect(changesFor(90, 9).map((change) => change.target_name)).toEqual(["무엄하시네요!(E)"]);
+    expect(changesFor(51, 22)[0].raw_change_text).toContain("4.4% → 4.6%");
+  });
+
   it("covers all 33 characters in the official 12.5 general-mode balance section", () => {
     const changes = BUNDLED_PATCH_CHANGES.filter((change) => change.patch_version === "12.5");
     expect([...new Set(changes.map((change) => change.character_code))].sort((a, b) => a - b)).toEqual([

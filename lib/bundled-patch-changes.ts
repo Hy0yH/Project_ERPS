@@ -5,6 +5,7 @@ export const PATCH_12_2B_SOURCE_URL = "https://playeternalreturn.com/posts/news/
 export const PATCH_12_3_SOURCE_URL = "https://playeternalreturn.com/posts/news/3813?hl=ko-KR";
 export const PATCH_12_4_SOURCE_URL = "https://playeternalreturn.com/posts/news/3838?hl=ko-KR";
 export const PATCH_12_5_SOURCE_URL = "https://playeternalreturn.com/posts/news/3867?hl=ko-KR";
+export const PATCH_12_6_SOURCE_URL = "https://playeternalreturn.com/posts/news/3898?hl=ko-KR";
 
 type BundledPatchChange = Omit<PatchChange, "reviewed"> & { reviewed: true };
 
@@ -120,11 +121,58 @@ function patch12_5Change(
   };
 }
 
+function patch12_6Change(
+  characterCode: number,
+  changeType: "buff" | "nerf",
+  targetName: string,
+  rawChangeText: string,
+  weaponCodes?: number[]
+): BundledPatchChange {
+  return {
+    ...patch12_5Change(characterCode, changeType, targetName, rawChangeText, weaponCodes),
+    patch_version: "12.6"
+  };
+}
+
 /**
  * 공식 패치노트의 일반 모드 실험체 밸런스 변경입니다.
  * 코발트 프로토콜 전용 보정과 무기·방어구를 통한 간접 변경은 포함하지 않습니다.
  */
 export const BUNDLED_PATCH_CHANGES: BundledPatchChange[] = [
+  // 2026-10-15 12.6 일반 모드 실험체 밸런스 변경
+  patch12_6Change(6, "buff", "황소의 눈(Q)", "스킬 증폭 계수: 최소 65% → 70%, 최대 130% → 140%"),
+  patch12_6Change(74, "buff", "수금(W) / 추심(E)", "보호막 공격력 계수 55% → 65% · 피해 공격력 계수 85% → 95%"),
+  patch12_6Change(65, "nerf", "휠 댄스(데비 W)", "대상 최대 체력 계수 5/5.5/6/6.5/7% → 4/4.5/5/5.5/6%"),
+  patch12_6Change(47, "buff", "기본 방어력 / 예고장(W)", "기본 방어력 51 → 52 · 회복 스킬 증폭 계수 8% → 10%"),
+  patch12_6Change(21, "buff", "더블샷(P)", "두 번째 타격 공격력 계수 50/55/60% → 55/60/65%"),
+  patch12_6Change(90, "buff", "저격총 무기 숙련도", "레벨당 공격 속도 4% → 4.5%, 스킬 증폭 4.2% → 4.3%", [11]),
+  patch12_6Change(90, "buff", "무엄하시네요!(E)", "이동 거리 3m → 3.5m"),
+  patch12_6Change(10, "buff", "호연각(Q) / 술 마시기(W)", "공격력 계수 70% → 80%, 취권 강화 기본 피해 40/65/90/115/140 → 30/60/90/120/150 및 공격력 계수 85% → 95% · 받는 스킬 피해 감소 45/50/55/60/65% → 50/55/60/65/70%"),
+  patch12_6Change(45, "buff", "드레이프(Q)", "이동 속도 감소 10/15/20/25/30% → 15/20/25/30/35%"),
+  patch12_6Change(4, "buff", "폭주 바이크(R)", "기본 피해 100/250/400 → 100/300/500"),
+  patch12_6Change(26, "buff", "권총 무기 숙련도", "레벨당 스킬 증폭 4.4% → 4.5%", [9]),
+  patch12_6Change(26, "buff", "광자력 수류탄(RE)", "지속 피해 스킬 증폭 계수 15% → 18%"),
+  patch12_6Change(84, "nerf", "쌍검 무기 숙련도", "레벨당 기본 공격 증폭 1.6% → 1.5%", [18]),
+  patch12_6Change(88, "nerf", "도깨비 불(P) / 내기 한판!(E)", "대상 최대 체력 계수 1/2/3% → 0.8/1.6/2.4% · 기본 피해 80/110/140/170/200 → 60/90/120/150/180"),
+  patch12_6Change(91, "nerf", "빛에게 바치는 맹세(R)", "보호막 최대 체력 계수 1.2% → 1%"),
+  patch12_6Change(43, "nerf", "플라즈마 폭탄(Q)", "기본 피해 80/105/130/155/180 → 70/95/120/145/170"),
+  patch12_6Change(13, "nerf", "레벨당 방어력", "방어력 성장 3.4 → 3.2"),
+  patch12_6Change(28, "buff", "마음의 양식(P)", "입힌 피해 대비 체력 회복 35% → 40%"),
+  patch12_6Change(82, "buff", "결심응진(P)", "회복 공격력 계수 40% → 50%"),
+  patch12_6Change(52, "buff", "아르카나 무기 숙련도", "레벨당 스킬 증폭 4.4% → 4.5%", [24]),
+  patch12_6Change(52, "buff", "폴 디그니티(E)", "별 컨정션 회복 기본량 20/30/40/50 → 26/36/46/56, 스킬 증폭 계수 6% → 7%"),
+  patch12_6Change(66, "buff", "바빌론의 입방체(W) / 바빌론의 주사위(RW)", "첫 타격 기본 피해 60/80/100/120/140 → 70/90/110/130/150, 스킬 증폭 계수 50% → 55%"),
+  patch12_6Change(9, "buff", "Mok제 폭탄(R)", "공격력 계수 40% → 50%, 스킬 증폭 계수 70% → 75%"),
+  patch12_6Change(59, "buff", "경화(W)", "착취 발동 시 기본 스킬 쿨다운 감소 25% → 30%"),
+  patch12_6Change(36, "nerf", "자수정의 물결(E)", "이동 속도 증가 120/125/130/135/140% → 110/115/120/125/130%"),
+  patch12_6Change(70, "buff", "제비걸음(W)", "공격 속도 증가 15/20/25/30/35% → 20/25/30/35/40%"),
+  patch12_6Change(71, "nerf", "분노의 일격(Q) / 맹공격(E)", "기본 피해 30/40/50/60/70 → 10/20/30/40/50, 잃은 체력 대비 회복 10%(최대 25%) → 8%(최대 20%) · 기본 피해 8/16/24/32/40 → 4/8/12/16/20"),
+  patch12_6Change(60, "buff", "프리치아(E)", "보호막 스킬 증폭 계수 35% → 40%"),
+  patch12_6Change(62, "buff", "저격총 무기 숙련도", "레벨당 스킬 증폭 4.1% → 4.2%", [11]),
+  patch12_6Change(62, "buff", "스파크탄(E)", "이동 속도 감소 2/4/6/8/10% → 12/14/16/18/20%"),
+  patch12_6Change(51, "buff", "기타 무기 숙련도", "레벨당 스킬 증폭 4.4% → 4.6%", [22]),
+  patch12_6Change(83, "nerf", "시간 제어 장치(W)", "쿨다운 11초 → 12초"),
+
   // 2026-10-01 12.5 일반 모드 실험체 밸런스 변경
   patch12_5Change(81, "bugfix", "1UP(E)", "이동 속도 증가 지속 시간 정상화: 1초 → 2초"),
   patch12_5Change(33, "bugfix", "가드&카운터(W)", "적에게 적용된 이동 속도 감소 효과가 지속 시간에 걸쳐 회복되도록 수정", undefined, -2),
@@ -328,6 +376,7 @@ export function patchChangeLabel(type: PatchChange["change_type"]) {
 }
 
 export function patchSourceUrl(patchVersion: string) {
+  if (patchVersion === "12.6") return PATCH_12_6_SOURCE_URL;
   if (patchVersion === "12.5") return PATCH_12_5_SOURCE_URL;
   if (patchVersion === "12.4") return PATCH_12_4_SOURCE_URL;
   if (patchVersion === "12.3") return PATCH_12_3_SOURCE_URL;
