@@ -60,7 +60,7 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
 
   const benchmarkLabel = analysis.benchmark_coverage.mmr_bucket_start === null
     ? "MMR 표본 부족"
-    : `${analysis.benchmark_coverage.mmr_bucket_start.toLocaleString()}–${Number(analysis.benchmark_coverage.mmr_bucket_end).toLocaleString()} MMR`;
+    : `기준 구간 ${analysis.benchmark_coverage.mmr_bucket_start.toLocaleString()}–${Number(analysis.benchmark_coverage.mmr_bucket_end).toLocaleString()} MMR`;
   const radarAxes = buildRadarAxes(analysis);
   const supportDimension = analysis.dimensions.find((dimension) => dimension.key === "team") ?? null;
 
@@ -73,6 +73,11 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
               신뢰도 {confidenceLabel(analysis.scope.confidence)}
             </span>
             <span className="badge">{benchmarkLabel}</span>
+            {analysis.scope.patch_key ? <span className="badge">분석 패치 {analysis.scope.patch_key}</span> : null}
+            <span className="badge">현재 패치만 분석</span>
+            {analysis.scope.excluded_games > 0 ? (
+              <span className="badge warn">다른 패치·패치 미확인 {analysis.scope.excluded_games}판 제외</span>
+            ) : null}
             {analysis.combat_context ? (
               <span className="badge">전투 역할 · {analysis.combat_context.label}</span>
             ) : null}
@@ -96,9 +101,11 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
       <section className="analysis-overview-grid" aria-label="플레이어 분석 개요">
         <OverviewMetric label="현재 MMR" value={analysis.player.mmr?.toLocaleString() ?? "-"} />
         <OverviewMetric label="전체 순위" value={analysis.player.rank ? `${analysis.player.rank.toLocaleString()}위` : "-"} />
-        <OverviewMetric label="분석 경기" value={`${analysis.scope.analyzed_games}판`} />
+        <OverviewMetric label="현재 패치 분석 경기" value={`${analysis.scope.analyzed_games}판`} />
         <OverviewMetric label="주력 픽 집중도" value={formatPercent(analysis.pick_profile.concentration)} />
       </section>
+
+      <PlayerFeedbackPanels analysis={analysis} />
 
       <PlaystyleMap axes={radarAxes} />
 
@@ -179,23 +186,6 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
         ) : null}
       </section>
 
-      <section className="analysis-insights-grid">
-        <InsightGroup
-          kicker="STRENGTHS"
-          title="확인된 강점"
-          empty="현재 표본에서 평균을 뚜렷하게 웃도는 지표가 아직 없습니다."
-          items={analysis.strengths}
-          tone="positive"
-        />
-        <InsightGroup
-          kicker="NEXT FOCUS"
-          title="랭크 상승을 위한 우선 점검"
-          empty="35점 미만이면서 높은 성과와 연결된 신뢰 가능한 지표가 없어, 현재 플레이의 일관성을 먼저 유지해도 좋습니다."
-          items={analysis.improvement_priorities}
-          tone="focus"
-        />
-      </section>
-
       <section className="analysis-caveats panel">
         <div className="analysis-section-head compact">
           <div>
@@ -217,6 +207,31 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
 
 function OverviewMetric({ label, value }: { label: string; value: string }) {
   return <div className="analysis-overview-card"><span>{label}</span><strong>{value}</strong></div>;
+}
+
+export function PlayerFeedbackPanels({ analysis }: { analysis: PlayerAnalysis }) {
+  return (
+    <section className="analysis-insights-grid" aria-label="최근 전적 근거와 점검 제안">
+      <InsightGroup
+        kicker="NEXT FOCUS"
+        title="최근 전적 기반 점검 제안"
+        description="현재 패치의 최근 전적으로 점검할 행동을 제안합니다. 수행 여부는 추적하지 않습니다. 최근 10경기와 이전 10경기 비교는 기록의 변화이며, 제안의 효과를 평가하지 않습니다."
+        empty={analysis.feedback.message}
+        intro={analysis.improvement_priorities.length ? analysis.feedback.message : undefined}
+        items={analysis.improvement_priorities}
+        analysis={analysis}
+        tone="focus"
+      />
+      <InsightGroup
+        kicker="STRENGTHS"
+        title="확인된 강점"
+        empty="현재 비교 가능한 기록에서 충분한 신뢰도로 확인된 65점 이상의 강점 지표가 아직 없습니다."
+        items={analysis.strengths}
+        analysis={analysis}
+        tone="positive"
+      />
+    </section>
+  );
 }
 
 type RadarAxis = {
@@ -536,6 +551,8 @@ function MetricRow({ metric }: { metric: PlayerAnalysisMetric }) {
             ? ` · ${referenceLabel} ${formatMetric(metric.reference_value, metric.unit)} · 개인 ${metric.player_games}판 / 비교 ${metric.sample_players}명`
             : ` · ${metric.comparison_note ?? "비교 기준을 충족하지 못했습니다."}`}
         </span>
+        <span>{metricScopeLabel(metric)}</span>
+        {metric.recent_trend ? <span className="analysis-trend">{trendLabel(metric)}</span> : null}
       </div>
       <span className={comparisonValue === null ? "muted" : comparisonValue >= 0 ? "metric-up" : "metric-down"}>
         {formatMetricDifference(metric)}
@@ -559,31 +576,89 @@ function InsightGroup({
   kicker,
   title,
   empty,
+  intro,
+  description,
   items,
+  analysis,
   tone
 }: {
   kicker: string;
   title: string;
   empty: string;
+  intro?: string;
+  description?: string;
   items: PlayerAnalysis["strengths"];
+  analysis: PlayerAnalysis;
   tone: "positive" | "focus";
 }) {
   return (
     <section className={`analysis-insight-panel panel ${tone}`}>
       <span className="page-kicker">{kicker}</span>
       <h2>{title}</h2>
+      {description ? <p className="analysis-feedback-intro">{description}</p> : null}
+      {intro ? <p className="analysis-feedback-intro">{intro}</p> : null}
       {items.length ? (
         <div className="analysis-insight-list">
           {items.map((item) => (
-            <article key={`${item.title}:${item.metric_ids.join(":")}`}>
-              <strong>{item.title}</strong>
-              <p>{item.detail}</p>
+            <article key={item.id}>
+              <h3>{item.title}</h3>
+              <dl className="analysis-feedback-steps">
+                <div>
+                  <dt>관측 근거</dt>
+                  <dd>
+                    <p>{item.detail}</p>
+                    <details className="analysis-feedback-details">
+                      <summary>비교 수치와 분석 범위 보기</summary>
+                    <ul className="analysis-feedback-evidence">
+                      {item.metric_ids.map((id) => {
+                        const metric = analysis.dimensions.flatMap((dimension) => dimension.metrics).find((value) => value.id === id);
+                        if (!metric) return null;
+                        const pick = analysis.pick_profile.picks.find((value) =>
+                          value.character_code === metric.player_scope.character_code && value.weapon_code === metric.player_scope.weapon_code);
+                        return (
+                          <li key={id}>
+                            <strong>{metric.label}</strong>
+                            <span>내 수치 {formatMetric(metric.value, metric.unit)} · 비교 기준 {formatMetric(Number(metric.reference_value), metric.unit)}</span>
+                            <span>{pick ? `${pick.character_name} · ${pick.weapon_name} · ` : ""}{metricScopeLabel(metric)}</span>
+                            <span>{referenceLabel(metric)} {metric.sample_games}경기·{metric.sample_players}명 · 신뢰도 {confidenceLabel(metric.confidence)}</span>
+                            {metric.recent_trend ? <span className="analysis-trend">{trendLabel(metric)}</span> : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    </details>
+                  </dd>
+                </div>
+                {item.hypothesis ? <div><dt>점검 가설</dt><dd>{item.hypothesis}</dd></div> : null}
+                {item.action ? <div className="analysis-feedback-action"><dt>확인해 볼 행동</dt><dd>{item.action}</dd></div> : null}
+                {item.review ? <div><dt>기록 비교 안내</dt><dd>{item.review}</dd></div> : null}
+                {item.coaching_note ? <div><dt>보충 설명</dt><dd>{item.coaching_note}</dd></div> : null}
+              </dl>
             </article>
           ))}
         </div>
       ) : <p>{empty}</p>}
     </section>
   );
+}
+
+function metricScopeLabel(metric: PlayerAnalysisMetric) {
+  const scope = metric.player_scope;
+  const parts = [`${scope.kind === "main_pick" ? "주력 픽" : "전체 픽"} ${metric.player_games}판 기준`];
+  if (scope.current_patch_games > 0) parts.push(`${scope.patch_key} ${scope.current_patch_games}판`);
+  if (scope.supplemental_games > 0) parts.push(`이전 패치 ${scope.supplemental_games}판`);
+  if (scope.unknown_patch_games > 0) parts.push(`패치 미확인 ${scope.unknown_patch_games}판`);
+  return parts.join(" · ");
+}
+
+function referenceLabel(metric: PlayerAnalysisMetric) {
+  const source = metric.reference_type === "same_pick" ? "같은 실험체·무기" : metric.reference_type === "role" ? "같은 역할군" : "유사 MMR";
+  return `${source}${metric.player_scope.patch_key ? ` · ${metric.player_scope.patch_key}` : ""} 비교`;
+}
+
+function trendLabel(metric: PlayerAnalysisMetric) {
+  const trend = metric.recent_trend!;
+  return `최근 기록 비교 (동일 패치·픽): 이전 ${trend.previous_games}판 ${formatMetric(trend.previous_value, metric.unit)} → 최근 ${trend.recent_games}판 ${formatMetric(trend.recent_value, metric.unit)}`;
 }
 
 function formatMetric(value: number, unit: PlayerAnalysisMetric["unit"]) {

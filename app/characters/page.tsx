@@ -17,7 +17,7 @@ export default async function CharactersPage({
       <section className="page-head">
         <div className="headline-block">
           <span className="headline-slash" aria-hidden="true" />
-          <h1>캐릭터 티어</h1>
+          <h1>실험체 티어표</h1>
           <p>최근 14일 {rankScopeLabel(rankScope)} 랭크 스쿼드 표본입니다.</p>
         </div>
       </section>

@@ -5,7 +5,8 @@ const state = vi.hoisted(() => ({
   cache: null as any,
   written: null as any,
   storedSeason: 41 as number | null,
-  collectedSeason: 41 as number | null
+  collectedSeason: 41 as number | null,
+  currentPatchGames: 50
 }));
 
 vi.mock("@/lib/env", async (importOriginal) => ({
@@ -23,9 +24,9 @@ vi.mock("@/lib/ingestion", () => ({
     userId: "test-user", userNum: 1, seasonId: state.collectedSeason,
     playerRows: Array.from({ length: 50 }, (_, i) => ({
       gameId: i + 1, seasonId: state.collectedSeason, userNum: 1,
-      characterNum: 1, bestWeapon: 15, gameRank: 3, mmrAfter: 7936,
+      characterNum: i < state.currentPatchGames ? 1 : 2, bestWeapon: 15, gameRank: 3, mmrAfter: 7936,
       playTime: 1200, damageToPlayer: 12000, playerKill: 3, playerAssistant: 4,
-      teamKill: 8, viewContribution: 25, versionSeason: 12, versionMajor: 3, versionMinor: 0,
+      teamKill: 8, viewContribution: 25, versionSeason: 12, versionMajor: i < state.currentPatchGames ? 3 : 2, versionMinor: 0,
       startDtm: "2026-09-09T00:00:00Z"
     }))
   }))
@@ -49,7 +50,8 @@ vi.mock("@/lib/supabase", () => ({
         const data = Array.from({ length: 90 }, (_, i) => ({
           user_num: 100 + Math.floor(i / 3), game_rank: i % 8 + 1, mmr_after: 7800,
           character_code: 1, best_weapon: 15, play_time: 1200,
-          damage_to_player: 14000 + i, view_contribution: 20, analysis_data_version: 2
+          damage_to_player: 14000 + i, view_contribution: 20, analysis_data_version: 2,
+          matches: { version_season: 12, version_major: 3, version_minor: 0 }
         }));
         return { data: entry.filters["matches.season_id"] === 41 ? data : [], error: null };
       }
@@ -81,6 +83,7 @@ beforeEach(() => {
   state.written = null;
   state.storedSeason = 41;
   state.collectedSeason = 41;
+  state.currentPatchGames = 50;
 });
 
 describe("analysis with missing season environment variable", () => {
@@ -127,5 +130,34 @@ describe("analysis with missing season environment variable", () => {
     expect(state.queries.some((query) => query.table === "match_players")).toBe(false);
     expect(state.written).toBeNull();
     errorLog.mockRestore();
+  });
+
+  it("uses only current-patch games for the main pick, metrics and cached feedback", async () => {
+    state.currentPatchGames = 12;
+    const analysis = await getOrBuildPlayerAnalysis("패치분리");
+    expect(analysis.scope).toMatchObject({ analyzed_games: 12, supplemental_games: 0, excluded_games: 38 });
+    expect(analysis.pick_profile.picks.map((pick) => pick.character_code)).toEqual([1]);
+    expect(analysis.dimensions.flatMap((dimension) => dimension.metrics).every((metric) =>
+      metric.player_games === 12 && metric.player_scope.current_patch_games === 12 && metric.player_scope.supplemental_games === 0)).toBe(true);
+    expect(state.written.payload.scope.excluded_games).toBe(38);
+    expect(state.written.payload.scope.analyzed_games).toBe(12);
+  });
+
+  it("withholds scores and suggestions when only a few current-patch games are available", async () => {
+    state.currentPatchGames = 3;
+    const analysis = await getOrBuildPlayerAnalysis("새패치표본부족");
+    expect(analysis.scope.analyzed_games).toBe(3);
+    expect(analysis.scope.confidence).toBe("low");
+    expect(analysis.dimensions.every((dimension) => dimension.score === null)).toBe(true);
+    expect(analysis.strengths).toEqual([]);
+    expect(analysis.improvement_priorities).toEqual([]);
+    expect(analysis.feedback.status).toBe("insufficient_evidence");
+    expect(analysis.feedback.message).toContain("현재 패치");
+  });
+
+  it("does not fall back to old-patch matches when there are no current-patch games", async () => {
+    state.currentPatchGames = 0;
+    await expect(getOrBuildPlayerAnalysis("이전패치만")).rejects.toMatchObject({ code: "PLAYER_ANALYSIS_NO_MATCHES" });
+    expect(state.written).toBeNull();
   });
 });

@@ -242,6 +242,22 @@ export type PlayerAnalysisMetric = {
   sample_games: number;
   sample_players: number;
   confidence: Confidence;
+  player_scope: {
+    kind: "main_pick" | "all_picks";
+    character_code: number | null;
+    weapon_code: number | null;
+    patch_key: string | null;
+    current_patch_games: number;
+    supplemental_games: number;
+    unknown_patch_games: number;
+  };
+  recent_trend: {
+    recent_games: number;
+    previous_games: number;
+    recent_value: number;
+    previous_value: number;
+    delta_absolute: number;
+  } | null;
 };
 
 export type PlayerAnalysisDimension = {
@@ -267,9 +283,14 @@ export type PlayerAnalysisPick = {
 };
 
 export type PlayerAnalysisInsight = {
+  id: string;
   title: string;
   detail: string;
   metric_ids: PlayerAnalysisMetricId[];
+  hypothesis: string | null;
+  action: string | null;
+  review: string | null;
+  coaching_note?: string;
 };
 
 export type PlayerAnalysis = {
@@ -287,6 +308,7 @@ export type PlayerAnalysis = {
     requested_games: number;
     analyzed_games: number;
     supplemental_games: number;
+    excluded_games: number;
     latest_game_at: string | null;
     confidence: Confidence;
   };
@@ -311,6 +333,12 @@ export type PlayerAnalysis = {
   dimensions: PlayerAnalysisDimension[];
   strengths: PlayerAnalysisInsight[];
   improvement_priorities: PlayerAnalysisInsight[];
+  feedback: {
+    status: "ready" | "insufficient_evidence" | "no_clear_weakness" | "insufficient_action_evidence";
+    message: string;
+    reliable_metrics: number;
+    total_actionable_metrics: number;
+  };
   ai_summary: string;
   benchmark_coverage: {
     mmr_bucket_start: number | null;

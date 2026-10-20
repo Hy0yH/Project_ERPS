@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildBenchmarkStats,
   buildPlayerAnalysis,
+  analysisRowPatchKey,
   confidenceFromAnalysisGames,
   mmrBucketStart,
   normalizeAnalysisRow,
@@ -12,6 +13,13 @@ import {
 } from "@/lib/player-analysis";
 
 describe("player playstyle analysis", () => {
+  it("requires all version parts before treating a row as a known patch", () => {
+    expect(analysisRowPatchKey({ versionSeason: 12, versionMajor: 6 })).toBeNull();
+    expect(analysisRowPatchKey({ versionSeason: 12 })).toBeNull();
+    expect(analysisRowPatchKey({ versionSeason: 12, versionMajor: 6, versionMinor: null })).toBeNull();
+    expect(analysisRowPatchKey({ versionSeason: 12, versionMajor: 6, versionMinor: 0 })).toBe("12.6.0");
+    expect(analysisRowPatchKey({ matches: [{ version_season: 12, version_major: 6, version_minor: 0 }] })).toBe("12.6.0");
+  });
   it("normalizes rates by play time and safely handles zero seconds", () => {
     expect(perMinute(600, 120)).toBe(300);
     expect(perMinute(600, 0)).toBe(0);
@@ -349,6 +357,74 @@ describe("player playstyle analysis", () => {
     expect(growth?.metrics.every((metric) => metric.reference_type === "mmr")).toBe(true);
     expect(analysis.caveats.some((caveat) => caveat.includes("검토 대상"))).toBe(true);
   });
+  it("excludes older patches from metrics and compares disjoint current-patch windows", () => {
+    const rows = Array.from({ length: 30 }, (_, index) => game({
+      user_num: 999, game_id: 9000 + index,
+      damage_to_player: index < 10 ? 4000 : 2000,
+      matches: { started_at: new Date(Date.UTC(2026, 9, 20, 0, -index)).toISOString(),
+        version_season: 12, version_major: index < 20 ? 6 : 5, version_minor: 0 }
+    }));
+    const peers = Array.from({ length: 90 }, (_, index) => game({ user_num: Math.floor(index / 3) + 1,
+      matches: { version_season: 12, version_major: 6, version_minor: 0 } }));
+    const input = { nickname: "변화확인", userNum: 999, playerRows: rows, overallRows: peers,
+      samePickRows: peers, seasonId: 41, patchKey: "12.6.0", supplementalGames: 10, expandedBenchmark: false };
+    const analysis = buildPlayerAnalysis(input);
+    const damage = analysis.dimensions.flatMap((dimension) => dimension.metrics).find((metric) => metric.id === "damage_per_minute")!;
+    expect(damage.player_scope).toMatchObject({ kind: "main_pick", character_code: 1, weapon_code: 1,
+      current_patch_games: 20, supplemental_games: 0, unknown_patch_games: 0 });
+    expect(analysis.scope).toMatchObject({ analyzed_games: 20, supplemental_games: 0, excluded_games: 10 });
+    expect(damage.recent_trend).toMatchObject({ recent_games: 10, previous_games: 10, recent_value: 200, previous_value: 100, delta_absolute: 100 });
+    const insufficient = buildPlayerAnalysis({ ...input, playerRows: rows.slice(0, 19) });
+    expect(insufficient.dimensions.flatMap((dimension) => dimension.metrics).every((metric) => metric.recent_trend === null)).toBe(true);
+  });
+
+  it("does not present a mixed-pick change or unknown patch history as a comparable trend", () => {
+    const peers = Array.from({ length: 90 }, (_, index) => game({ user_num: Math.floor(index / 3) + 1,
+      matches: { version_season: 12, version_major: 6, version_minor: 0 } }));
+    const rows = Array.from({ length: 20 }, (_, index) => game({ user_num: 999, game_id: 9500 + index,
+      character_code: index < 10 ? 1 : 2, matches: { version_season: 12, version_major: 6, version_minor: 0 } }));
+    const input = { nickname: "혼합픽", userNum: 999, playerRows: rows, overallRows: peers,
+      samePickRows: [], seasonId: 41, patchKey: "12.6.0", supplementalGames: 0, expandedBenchmark: false };
+    const analysis = buildPlayerAnalysis(input);
+    expect(analysis.dimensions.flatMap((dimension) => dimension.metrics).every((metric) => metric.recent_trend === null)).toBe(true);
+    const unknown = buildPlayerAnalysis({ ...input, playerRows: rows.map((row) => ({ ...row, character_code: 1,
+      matches: { started_at: "2026-10-20T00:00:00Z" } })), supplementalGames: 5 });
+    const damage = unknown.dimensions.flatMap((dimension) => dimension.metrics).find((metric) => metric.id === "damage_per_minute")!;
+    expect(unknown.scope).toMatchObject({ analyzed_games: 0, excluded_games: 20 });
+    expect(damage.comparison_status).toBe("insufficient_player_games");
+    expect(damage.recent_trend).toBeNull();
+  });
+
+  it("does not let old-patch outliers change scores, the main pick, suggestions, or the latest analysis game", () => {
+    const current = Array.from({ length: 20 }, (_, index) => game({ user_num: 999, game_id: 10000 + index }));
+    const older = Array.from({ length: 40 }, (_, index) => game({ user_num: 999, game_id: 11000 + index,
+      character_code: 2, damage_to_player: 999999, game_rank: 1,
+      matches: { started_at: "2099-01-01T00:00:00Z", version_season: 12, version_major: 0, version_minor: 0 } }));
+    const peers = Array.from({ length: 90 }, (_, index) => game({ user_num: Math.floor(index / 3) + 1 }));
+    const input = { nickname: "패치오염방지", userNum: 999, playerRows: current, overallRows: peers,
+      samePickRows: peers, seasonId: 41, patchKey: "12.1.0", supplementalGames: 0, expandedBenchmark: false };
+    const baseline = buildPlayerAnalysis(input);
+    const mixed = buildPlayerAnalysis({ ...input, playerRows: [...older, ...current] });
+    expect(mixed.dimensions).toEqual(baseline.dimensions);
+    expect(mixed.pick_profile).toEqual(baseline.pick_profile);
+    expect(mixed.strengths).toEqual(baseline.strengths);
+    expect(mixed.improvement_priorities).toEqual(baseline.improvement_priorities);
+    expect(mixed.scope.latest_game_at).toBe(baseline.scope.latest_game_at);
+    expect(mixed.scope).toMatchObject({ analyzed_games: 20, supplemental_games: 0, excluded_games: 40 });
+  });
+
+  it("does not use old or unidentified peer patches to satisfy cohort minimums", () => {
+    const playerRows = Array.from({ length: 20 }, (_, index) => game({ user_num: 999, game_id: 12000 + index }));
+    const peers = Array.from({ length: 90 }, (_, index) => game({ user_num: Math.floor(index / 3) + 1,
+      matches: index < 45 ? { version_season: 12, version_major: 0, version_minor: 0 } : {} }));
+    const analysis = buildPlayerAnalysis({ nickname: "비교군패치분리", userNum: 999, playerRows, overallRows: peers,
+      samePickRows: peers, roleRows: peers, seasonId: 41, patchKey: "12.1.0", supplementalGames: 0, expandedBenchmark: false });
+    expect(analysis.benchmark_coverage.overall_games).toBe(0);
+    expect(analysis.benchmark_coverage.same_pick_games).toBe(0);
+    expect(analysis.benchmark_coverage.role_games).toBe(0);
+    expect(analysis.dimensions.every((dimension) => dimension.score === null)).toBe(true);
+    expect(analysis.feedback.status).toBe("insufficient_evidence");
+  });
 });
 
 function game(overrides: Record<string, unknown> = {}) {
@@ -380,7 +456,7 @@ function game(overrides: Record<string, unknown> = {}) {
     mmr_gain: 10,
     mmr_after: 7800,
     analysis_data_version: 2,
-    matches: { started_at: "2026-08-18T00:00:00.000Z" },
+    matches: { started_at: "2026-08-18T00:00:00.000Z", version_season: 12, version_major: 1, version_minor: 0 },
     ...overrides
   };
 }

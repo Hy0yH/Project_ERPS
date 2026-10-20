@@ -4,7 +4,6 @@ import {
   ER_RECOMMEND_HIGH_SAMPLE_GAMES,
   ER_RECOMMEND_MIN_SAMPLE_GAMES
 } from "@/lib/env";
-import { isKnownAnalysisMetricId } from "@/lib/player-analysis";
 import type {
   PlayerAnalysis,
   PlayerAnalysisInsight,
@@ -129,74 +128,51 @@ function formatRank(value?: number) {
 const playerAnalysisExplanationSchema = z.object({
   summary: z.string().min(1).max(700),
   strengths: z.array(z.object({
-    title: z.string().min(1).max(80),
-    detail: z.string().min(1).max(350),
+    candidateId: z.string().min(1).max(100),
+    note: z.string().min(1).max(200),
     metricIds: z.array(z.string()).min(1).max(3)
-  })).max(2),
+  }).strict()).max(2),
   improvements: z.array(z.object({
-    title: z.string().min(1).max(80),
-    detail: z.string().min(1).max(350),
+    candidateId: z.string().min(1).max(100),
+    note: z.string().min(1).max(200),
     metricIds: z.array(z.string()).min(1).max(3)
-  })).max(3)
-});
+  }).strict()).max(2)
+}).strict();
 
 export async function explainPlayerAnalysis(analysis: PlayerAnalysis): Promise<PlayerAnalysis> {
   if (!process.env.OPENAI_API_KEY) return analysis;
-
-  const allowedMetricIds = new Set(
-    analysis.dimensions.filter((dimension) => dimension.key !== "team").flatMap((dimension) =>
-      dimension.metrics
-        .filter((metric) => metric.comparison_status === "available")
-        .map((metric) => metric.id)
-    )
-  );
+  if (!analysis.strengths.length && !analysis.improvement_priorities.length) return analysis;
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   try {
     const response = await client.responses.create({
       model: process.env.OPENAI_MODEL || "gpt-5-mini",
       instructions:
-        "당신은 이터널 리턴 플레이 코치다. 입력의 집계 수치와 허용된 후보만 사용한다. 실제 이동 경로, 특정 교전 장면, 매치업, 인과관계, 랭크 상승 보장을 만들지 않는다. 한국어 JSON 객체 하나만 반환하며 모든 강점과 조언에는 근거 metricIds를 하나 이상 포함한다. summary, strengths, improvements 이외의 키를 만들지 않는다.",
+        "당신은 이터널 리턴 플레이 코치다. 서버가 확정한 강점·점검 제안을 보충 설명한다. 수행 여부를 추적하거나 제안의 효과를 평가한다고 표현하지 않는다. 후보를 새로 만들거나 강점과 개선점 사이에서 이동하지 않는다. candidateId와 metricIds는 해당 후보의 값을 모두 그대로 복사한다. 제목·관측 수치·가설·행동 제안·기록 비교 안내은 서버가 표시하므로 수정하지 않는다. note에는 해당 후보를 실천할 때 참고할 짧은 설명만 쓴다. summary는 제공된 기본 요약의 의미를 유지한다. summary와 note에는 숫자·백분율·새로운 통계 판단을 쓰지 않는다. 실제 이동 경로, 특정 교전 장면, 매치업, 인과관계, 랭크 상승 보장을 만들지 않는다. 한국어 JSON 객체 하나만 반환한다.",
       input: JSON.stringify({
         confidence: analysis.scope.confidence,
-        pickProfile: analysis.pick_profile,
         combatContext: analysis.combat_context,
-        metrics: analysis.dimensions.filter((dimension) => dimension.key !== "team").flatMap((dimension) =>
-          dimension.metrics
-            .filter((metric) => metric.comparison_status === "available")
-            .map((metric) => ({
-            id: metric.id,
-            label: metric.label,
-            value: metric.value,
-            referenceValue: metric.reference_value,
-            referenceType: metric.reference_type,
-            deltaPercent: metric.delta_percent,
-            deltaAbsolute: metric.delta_absolute,
-            relativeScore: metric.relative_score,
-            confidence: metric.confidence,
-            playerGames: metric.player_games,
-            samplePlayers: metric.sample_players
-          }))
-        ),
+        summary: analysis.ai_summary,
+        feedback: analysis.feedback,
         allowedStrengths: analysis.strengths,
         allowedImprovements: analysis.improvement_priorities,
         outputShape: {
           summary: "string",
-          strengths: [{ title: "string", detail: "string", metricIds: ["metric_id"] }],
-          improvements: [{ title: "string", detail: "string", metricIds: ["metric_id"] }]
+          strengths: [{ candidateId: "strength:metric_id", note: "string", metricIds: ["metric_id"] }],
+          improvements: [{ candidateId: "improvement:task_id", note: "string", metricIds: ["metric_id"] }]
         }
       })
     }, { timeout: 5000 });
     const parsed = playerAnalysisExplanationSchema.parse(JSON.parse(response.output_text));
-    const strengths = validateAnalysisInsights(parsed.strengths, allowedMetricIds);
-    const improvements = validateAnalysisInsights(parsed.improvements, allowedMetricIds);
+    const strengths = validateAnalysisInsights(parsed.strengths, analysis.strengths);
+    const improvements = validateAnalysisInsights(parsed.improvements, analysis.improvement_priorities);
+    const invalidCandidates = strengths.accepted !== parsed.strengths.length || improvements.accepted !== parsed.improvements.length;
     return {
       ...analysis,
-      ai_summary: parsed.summary,
-      strengths: strengths.length ? strengths : analysis.strengths,
-      improvement_priorities: improvements.length
-        ? improvements
-        : analysis.improvement_priorities
+      ai_summary: !invalidCandidates && analysis.scope.confidence !== "low" && safeCoachingText(parsed.summary)
+        ? parsed.summary : analysis.ai_summary,
+      strengths: strengths.items,
+      improvement_priorities: improvements.items
     };
   } catch {
     return analysis;
@@ -204,18 +180,25 @@ export async function explainPlayerAnalysis(analysis: PlayerAnalysis): Promise<P
 }
 
 function validateAnalysisInsights(
-  insights: { title: string; detail: string; metricIds: string[] }[],
-  allowedMetricIds: Set<string>
-): PlayerAnalysisInsight[] {
-  return insights.flatMap((insight) => {
-    const metricIds = insight.metricIds
-      .filter((id) => allowedMetricIds.has(id))
-      .filter(isKnownAnalysisMetricId);
-    if (!metricIds.length) return [];
-    return [{
-      title: insight.title,
-      detail: insight.detail,
-      metric_ids: metricIds
-    }];
-  });
+  insights: { candidateId: string; note: string; metricIds: string[] }[],
+  candidates: PlayerAnalysisInsight[]
+) {
+  const accepted = new Map<string, string>();
+  for (const insight of insights) {
+    const candidate = candidates.find((item) => item.id === insight.candidateId);
+    if (!candidate || accepted.has(candidate.id) || !safeCoachingText(insight.note)) continue;
+    const ids = new Set(insight.metricIds);
+    if (ids.size !== insight.metricIds.length || ids.size !== candidate.metric_ids.length ||
+        candidate.metric_ids.some((id) => !ids.has(id))) continue;
+    accepted.set(candidate.id, insight.note);
+  }
+  return {
+    accepted: accepted.size,
+    items: candidates.map((candidate) => accepted.has(candidate.id)
+      ? { ...candidate, coaching_note: accepted.get(candidate.id) } : candidate)
+  };
+}
+
+function safeCoachingText(value: string) {
+  return !/[\p{N}%％]|퍼센트|백분율|보장|반드시|확실히|때문|원인이다|원인입니다|분명|무조건/u.test(value);
 }

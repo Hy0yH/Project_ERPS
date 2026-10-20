@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SearchBox } from "@/components/SearchBox";
+import { FeatureEntries } from "@/components/FeatureEntries";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getTargetPatchKey } from "@/lib/patch-version";
 import {
@@ -28,16 +28,12 @@ export default async function HomePage() {
         <div className="headline-block">
           <span className="headline-slash" aria-hidden="true" />
           <h1>이터널 리턴 메타 추천</h1>
-          <p>랭크 데이터로 더 나은 선택을</p>
+          <p>티어표로 픽을 고르고, 최근 전적으로 내 플레이를 확인하세요.</p>
         </div>
       </section>
 
-      <div className="stack">
-        <SetupNotice />
-        <section className="panel search-panel">
-          <SearchBox />
-        </section>
-      </div>
+      <FeatureEntries />
+      <SetupNotice />
 
       <section className="metrics-strip">
         <div className="metric metric-cell">
@@ -56,7 +52,10 @@ export default async function HomePage() {
 
       <section className="rankings-grid">
         <section className="ranking-section">
-          <h2 className="section-title">상위 캐릭터</h2>
+          <div className="ranking-section-head">
+            <h2 className="section-title">상위 캐릭터</h2>
+            <Link className="ranking-all-link" href="/characters">티어표 전체 보기 <span aria-hidden="true">→</span></Link>
+          </div>
           <div className="ranking-panel">
             {topMeta.length ? topMeta.map((item, index) => (
               <Link

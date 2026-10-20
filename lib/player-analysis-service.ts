@@ -11,8 +11,7 @@ import { explainPlayerAnalysis } from "@/lib/openai";
 import {
   comparePatchParts,
   getActivePatch,
-  getStoredPatchInfo,
-  matchesPatch
+  getStoredPatchInfo
 } from "@/lib/patch-version";
 import {
   PLAYER_ANALYSIS_GAME_LIMIT,
@@ -27,6 +26,7 @@ import {
   PLAYER_ANALYSIS_MIN_SAME_PICK_PLAYERS,
   PLAYER_ANALYSIS_MMR_BUCKET,
   PLAYER_ANALYSIS_VERSION,
+  analysisRowPatchKey,
   buildPlayerAnalysis,
   mmrBucketStart,
   type AnalysisRow
@@ -117,7 +117,7 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
     seasonId = collectedSeasonId;
     const refreshedPatch = await getActivePatch(supabase);
     if (refreshedPatch?.patch_key !== patch?.patch_key) patch = refreshedPatch;
-    const observedPatch = latestObservedPatch(collection.playerRows, patch);
+    const observedPatch = latestObservedPatch(collection.playerRows);
     if (observedPatch && (!patch || comparePatchParts(observedPatch, patch) > 0)) {
       try {
         const storedObservedPatch = await getStoredPatchInfo(
@@ -132,6 +132,8 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       }
     }
     const selectedPatch = patch;
+    if (!selectedPatch) throw new PlayerAnalysisUnavailableError("분석 기준이 되는 현재 패치를 확인하지 못했습니다.");
+    if (cached && cached.analysis.scope.patch_key !== selectedPatch.patch_key) cached = null;
     const persistedRows = await fetchPlayerRows(
       supabase,
       collection.userId,
@@ -151,13 +153,8 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       : userRows;
     if (!currentPatchRows.length) throw new PlayerAnalysisNoMatchesError(nickname);
 
-    const selectedRows = [
-      ...currentPatchRows,
-      ...userRows.filter((row) => !currentPatchRows.includes(row))
-    ].slice(0, PLAYER_ANALYSIS_GAME_LIMIT);
-    const supplementalGames = selectedRows.filter(
-      (row) => selectedPatch && !rowMatchesPatch(row, selectedPatch)
-    ).length;
+    const selectedRows = currentPatchRows.slice(0, PLAYER_ANALYSIS_GAME_LIMIT);
+    const excludedGames = userRows.length - currentPatchRows.length;
     const userNum = Number(collection.userNum ?? selectedRows[0]?.user_num ?? 0);
     const rank = await readPlayerRank(collection.userId, seasonId);
     const mmr = Number(rank.mmr ?? selectedRows[0]?.mmr_after ?? selectedRows[0]?.mmrAfter ?? 0);
@@ -220,7 +217,8 @@ async function buildWithCache(nickname: string, forceRefresh: boolean) {
       rank,
       seasonId,
       patchKey: selectedPatch?.patch_key ?? null,
-      supplementalGames,
+      supplementalGames: 0,
+      excludedGames,
       expandedBenchmark: !cohortMeetsMinimums(
         samePickInitial,
         PLAYER_ANALYSIS_MIN_SAME_PICK_GAMES,
@@ -589,8 +587,7 @@ function cohortMeetsMinimums(
 }
 
 function rowMatchesPatch(row: AnalysisRow, patch: PatchVersion) {
-  const source = rowMatchSource(row);
-  return matchesPatch(source, patch);
+  return analysisRowPatchKey(row) === patch.patch_key;
 }
 
 function rowStartedAt(row: AnalysisRow) {
@@ -609,12 +606,11 @@ function sortPlayerRows(rows: AnalysisRow[], patch: PatchVersion | null) {
     .sort((a, b) => Number(Boolean(patch && rowMatchesPatch(b, patch))) - Number(Boolean(patch && rowMatchesPatch(a, patch))));
 }
 
-function latestObservedPatch(rows: AnalysisRow[], fallback: PatchVersion | null): PatchVersion | null {
+function latestObservedPatch(rows: AnalysisRow[]): PatchVersion | null {
   const candidates = rows.flatMap((row) => {
-    const versionSeason = Number(row.versionSeason ?? row.version_season ?? fallback?.version_season ?? 0);
-    const versionMajor = Number(row.versionMajor ?? row.version_major);
-    const versionMinor = Number(row.versionMinor ?? row.version_minor);
-    if (!versionSeason || !Number.isFinite(versionMajor) || !Number.isFinite(versionMinor)) return [];
+    const patchKey = analysisRowPatchKey(row);
+    if (!patchKey) return [];
+    const [versionSeason, versionMajor, versionMinor] = patchKey.split(".").map(Number);
     return [{
       version_season: versionSeason,
       version_major: versionMajor,

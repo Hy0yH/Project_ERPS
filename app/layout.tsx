@@ -12,6 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <body>
+        <a className="skip-link" href="#main-content">본문으로 바로 가기</a>
         <header className="topbar">
           <div className="topbar-inner">
             <Link className="brand" href="/">
@@ -20,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <SiteNav />
           </div>
         </header>
-        <main>{children}</main>
+        <main id="main-content" tabIndex={-1}>{children}</main>
       </body>
     </html>
   );
