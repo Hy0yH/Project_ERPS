@@ -31,5 +31,17 @@
     "desktop": "home-ranking-alignment-desktop-2026-10-28.jpg",
     "mobile": "home-ranking-alignment-mobile-2026-10-28.jpg"
   },
-  "productionVerification": "Pending deployment"
+  "productionVerification": {
+    "codeCommit": "98ace270ee2dc1b531cadc9190421a3461cb3878",
+    "deploymentId": "dpl_3CnPuz9pqEQV7WVyWkcKfdsX1nwp",
+    "state": "READY",
+    "url": "https://project-erps.vercel.app/",
+    "browserViewportWidthPx": 1280,
+    "titleTopDifferencePx": 0,
+    "panelTopDifferencePx": 0,
+    "leftPanelHeightPx": 342,
+    "rightPanelHeightPx": 342,
+    "bothHeadersMinHeight": "44px",
+    "screenshot": "home-ranking-alignment-production-2026-10-28.jpg"
+  }
 }
