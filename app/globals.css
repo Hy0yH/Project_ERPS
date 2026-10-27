@@ -374,7 +374,7 @@ p {
 .feedback-preview-grid p { font-size: 14px; }
 .feedback-secondary-link { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; color: var(--muted-strong); font-size: 14px; }
 .feedback-secondary-link:hover { color: var(--text); }
-.ranking-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
+.ranking-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: 13px; }
 .ranking-section-head .section-title { margin-bottom: 0; }
 .ranking-all-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--muted-strong); font-size: 13px; font-weight: 750; }
 .ranking-all-link:hover { color: var(--text); }

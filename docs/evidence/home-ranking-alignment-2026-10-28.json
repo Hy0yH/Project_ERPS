@@ -1,0 +1,35 @@
+{
+  "dateKST": "2026-10-28",
+  "issue": "ERPS-028",
+  "verificationEnvironment": "Local Next.js development server, actual database reads",
+  "beforeDesktop1564": {
+    "titleTopDifferencePx": 10,
+    "panelTopDifferencePx": 20
+  },
+  "afterDesktop1564": {
+    "titleTopDifferencePx": 0,
+    "panelTopDifferencePx": 0,
+    "leftPanelHeightPx": 342,
+    "rightPanelHeightPx": 342
+  },
+  "afterDesktop1024": {
+    "titleTopDifferencePx": 0,
+    "panelTopDifferencePx": 0
+  },
+  "afterMobile390": {
+    "viewportWidthPx": 390,
+    "documentScrollWidthPx": 375,
+    "leftPanelWidthPx": 343,
+    "rightPanelWidthPx": 343,
+    "leftPanelLeftPx": 16,
+    "rightPanelLeftPx": 16,
+    "singleColumn": true,
+    "horizontalDocumentOverflow": false
+  },
+  "typecheckExitCode": 0,
+  "screenshots": {
+    "desktop": "home-ranking-alignment-desktop-2026-10-28.jpg",
+    "mobile": "home-ranking-alignment-mobile-2026-10-28.jpg"
+  },
+  "productionVerification": "Pending deployment"
+}

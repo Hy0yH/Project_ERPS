@@ -89,7 +89,9 @@ async function HomeStatistics() {
           </div>
         </section>
         <section className="ranking-section">
-          <h2 className="section-title">상위 조합</h2>
+          <div className="ranking-section-head">
+            <h2 className="section-title">상위 조합</h2>
+          </div>
           <div className="ranking-panel">
             {topComps.length ? topComps.map((item, index) => (
               <div className="ranking-row" key={`${item.comp_key}:${item.character_weapon_keys.join("|")}`}>
