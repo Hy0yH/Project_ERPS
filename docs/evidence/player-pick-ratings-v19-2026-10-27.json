@@ -1,0 +1,1718 @@
+{
+  "generatedAt": "2026-10-26T19:25:47.740Z",
+  "cacheVersion": 19,
+  "totalChecks": 601,
+  "failures": [],
+  "audits": [
+    {
+      "capturedAt": "2026-10-26T12:05:50.764Z",
+      "patch": {
+        "patch_key": "12.6.0",
+        "version_season": 12,
+        "version_major": 6,
+        "version_minor": 0,
+        "patch_start_at": "2026-10-15T02:00:00Z",
+        "latest_match_at": "2026-10-26T11:36:55.055+00:00"
+      },
+      "seasonId": 41,
+      "validation": {
+        "checks": 510,
+        "failures": []
+      },
+      "players": [
+        {
+          "nickname": "하스",
+          "currentPatchGames": 50,
+          "benchmarkCoverage": {
+            "mmr_bucket_start": 5500,
+            "mmr_bucket_end": 6000,
+            "expanded": false,
+            "overall_games": 776,
+            "overall_players": 601,
+            "same_pick_games": 16,
+            "same_pick_players": 14,
+            "role_games": 1068,
+            "role_players": 835,
+            "minimum_overall_games": 50,
+            "minimum_overall_players": 30,
+            "minimum_same_pick_games": 30,
+            "minimum_same_pick_players": 15,
+            "minimum_role_games": 50,
+            "minimum_role_players": 30,
+            "minimum_combat_peer_games": 3
+          },
+          "pickEvaluations": [
+            {
+              "character": "에키온",
+              "weapon": "VF의수",
+              "games": 12,
+              "grade": "B",
+              "score": 53,
+              "status": "provisional",
+              "confidence": "medium",
+              "reason": "등급 확정까지 8판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 4.833333333333333,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 43.9,
+                  "adjusted_score": 45.3,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.25,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 55.4,
+                  "adjusted_score": 54.2,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.08333333333333333,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 83.2,
+                  "adjusted_score": 75.7,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 3.8333333333333335,
+                "mmr_gain_per_game": -8,
+                "damage_per_minute": 638.2446764091858
+              }
+            },
+            {
+              "character": "프리야",
+              "weapon": "기타",
+              "games": 11,
+              "grade": "B",
+              "score": 58.9,
+              "status": "provisional",
+              "confidence": "medium",
+              "reason": "등급 확정까지 9판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 3.909090909090909,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 59.7,
+                  "adjusted_score": 57.2,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.45454545454545453,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 56.2,
+                  "adjusted_score": 54.6,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.09090909090909091,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 83.2,
+                  "adjusted_score": 74.6,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.909090909090909,
+                "mmr_gain_per_game": 0.45454545454545453,
+                "damage_per_minute": 578.951741205586
+              }
+            },
+            {
+              "character": "펜리르",
+              "weapon": "글러브",
+              "games": 5,
+              "grade": "B",
+              "score": 54.2,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 15판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 3.4,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 60.9,
+                  "adjusted_score": 55.5,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.6,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 61.9,
+                  "adjusted_score": 56,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 41.5,
+                  "adjusted_score": 45.8,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 4.2,
+                "mmr_gain_per_game": 40.8,
+                "damage_per_minute": 694.6949872557349
+              }
+            },
+            {
+              "character": "시셀라",
+              "weapon": "투척",
+              "games": 5,
+              "grade": "B",
+              "score": 52.6,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 15판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 4.2,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 46.1,
+                  "adjusted_score": 48.1,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.4,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 56.1,
+                  "adjusted_score": 53.1,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.2,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 83.2,
+                  "adjusted_score": 66.6,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.6,
+                "mmr_gain_per_game": 20.2,
+                "damage_per_minute": 968.7702503681885
+              }
+            },
+            {
+              "character": "니키",
+              "weapon": "글러브",
+              "games": 4,
+              "grade": "B",
+              "score": 50,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 16판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 4.25,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 46.1,
+                  "adjusted_score": 48.3,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.5,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 59.1,
+                  "adjusted_score": 54.1,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 41.5,
+                  "adjusted_score": 46.2,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.75,
+                "mmr_gain_per_game": -3.75,
+                "damage_per_minute": 555.6476683937824
+              }
+            },
+            {
+              "character": "아디나",
+              "weapon": "아르카나",
+              "games": 3,
+              "grade": "B",
+              "score": 53.1,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 17판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 3.6666666666666665,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 59.8,
+                  "adjusted_score": 53.8,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.6666666666666666,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 62.2,
+                  "adjusted_score": 54.7,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 41.5,
+                  "adjusted_score": 46.7,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 5.333333333333333,
+                "mmr_gain_per_game": 12.666666666666666,
+                "damage_per_minute": 1003.466754879259
+              }
+            },
+            {
+              "character": "엘레나",
+              "weapon": "레이피어",
+              "games": 2,
+              "grade": "C+",
+              "score": 49.8,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 18판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 4.5,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 44.9,
+                  "adjusted_score": 48.4,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.5,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 59.1,
+                  "adjusted_score": 52.9,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 41.5,
+                  "adjusted_score": 47.3,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 3,
+                "mmr_gain_per_game": 5.5,
+                "damage_per_minute": 726.6857142857143
+              }
+            },
+            {
+              "character": "리 다이린",
+              "weapon": "글러브",
+              "games": 2,
+              "grade": "C+",
+              "score": 46.3,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 18판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 4.5,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 44.9,
+                  "adjusted_score": 48.4,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 27.6,
+                  "adjusted_score": 42.9,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 41.5,
+                  "adjusted_score": 47.3,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 4,
+                "mmr_gain_per_game": -14,
+                "damage_per_minute": 495.1654411764706
+              }
+            },
+            {
+              "character": "아르다",
+              "weapon": "아르카나",
+              "games": 2,
+              "grade": "C+",
+              "score": 49.8,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 18판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 4.5,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 44.9,
+                  "adjusted_score": 48.4,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.5,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 59.1,
+                  "adjusted_score": 52.9,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 41.5,
+                  "adjusted_score": 47.3,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 5.5,
+                "mmr_gain_per_game": 19.5,
+                "damage_per_minute": 922.2788605697151
+              }
+            },
+            {
+              "character": "리 다이린",
+              "weapon": "쌍절곤",
+              "games": 2,
+              "grade": "C+",
+              "score": 40.9,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 18판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 7,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 10.8,
+                  "adjusted_score": 37.6,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 27.6,
+                  "adjusted_score": 42.9,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 41.5,
+                  "adjusted_score": 47.3,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 1.5,
+                "mmr_gain_per_game": -31.5,
+                "damage_per_minute": 497.1097372488408
+              }
+            },
+            {
+              "character": "알론소",
+              "weapon": "글러브",
+              "games": 1,
+              "grade": "B",
+              "score": 55.5,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 19판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 2,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 80,
+                  "adjusted_score": 56.7,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 1,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 81.4,
+                  "adjusted_score": 57,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 41.5,
+                  "adjusted_score": 48.1,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2,
+                "mmr_gain_per_game": 34,
+                "damage_per_minute": 578.5780525502319
+              }
+            },
+            {
+              "character": "마커스",
+              "weapon": "망치",
+              "games": 1,
+              "grade": "C+",
+              "score": 43.6,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 19판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 7,
+                  "reference_mean": 4.1613501307344904,
+                  "percentile": 10.8,
+                  "adjusted_score": 41.2,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0,
+                  "reference_mean": 0.40996751446002694,
+                  "percentile": 27.6,
+                  "adjusted_score": 45,
+                  "sample_games": 776,
+                  "sample_players": 601
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.15179066634973457,
+                  "percentile": 41.5,
+                  "adjusted_score": 48.1,
+                  "sample_games": 776,
+                  "sample_players": 601
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2,
+                "mmr_gain_per_game": -43,
+                "damage_per_minute": 977.1812080536913
+              }
+            }
+          ]
+        },
+        {
+          "nickname": "음침해지기",
+          "currentPatchGames": 50,
+          "benchmarkCoverage": {
+            "mmr_bucket_start": 8000,
+            "mmr_bucket_end": 8500,
+            "expanded": false,
+            "overall_games": 91519,
+            "overall_players": 4660,
+            "same_pick_games": 885,
+            "same_pick_players": 189,
+            "role_games": 38919,
+            "role_players": 3263,
+            "minimum_overall_games": 50,
+            "minimum_overall_players": 30,
+            "minimum_same_pick_games": 30,
+            "minimum_same_pick_players": 15,
+            "minimum_role_games": 50,
+            "minimum_role_players": 30,
+            "minimum_combat_peer_games": 3
+          },
+          "pickEvaluations": [
+            {
+              "character": "재키",
+              "weapon": "양손검",
+              "games": 26,
+              "grade": "B+",
+              "score": 60.5,
+              "status": "rated",
+              "confidence": "high",
+              "reason": "비슷한 MMR대 플레이어의 경기 결과와 비교한 최근 성적 등급입니다.",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 4.076923076923077,
+                  "reference_mean": 4.161705023770748,
+                  "percentile": 61.1,
+                  "adjusted_score": 61.1,
+                  "sample_games": 91519,
+                  "sample_players": 4660
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.46153846153846156,
+                  "reference_mean": 0.4280724087302688,
+                  "percentile": 64.2,
+                  "adjusted_score": 64.2,
+                  "sample_games": 91519,
+                  "sample_players": 4660
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.11538461538461539,
+                  "reference_mean": 0.160249407702894,
+                  "percentile": 50.1,
+                  "adjusted_score": 50.1,
+                  "sample_games": 91519,
+                  "sample_players": 4660
+                }
+              ],
+              "details": {
+                "deaths_per_game": 3,
+                "mmr_gain_per_game": 0.3076923076923077,
+                "damage_per_minute": 822.182122098545
+              }
+            },
+            {
+              "character": "재키",
+              "weapon": "단검",
+              "games": 22,
+              "grade": "B+",
+              "score": 68.9,
+              "status": "rated",
+              "confidence": "high",
+              "reason": "비슷한 MMR대 플레이어의 경기 결과와 비교한 최근 성적 등급입니다.",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 3.6818181818181817,
+                  "reference_mean": 4.161705023770748,
+                  "percentile": 76,
+                  "adjusted_score": 76,
+                  "sample_games": 91519,
+                  "sample_players": 4660
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.45454545454545453,
+                  "reference_mean": 0.4280724087302688,
+                  "percentile": 63,
+                  "adjusted_score": 63,
+                  "sample_games": 91519,
+                  "sample_players": 4660
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.13636363636363635,
+                  "reference_mean": 0.160249407702894,
+                  "percentile": 58.9,
+                  "adjusted_score": 58.9,
+                  "sample_games": 91519,
+                  "sample_players": 4660
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.772727272727273,
+                "mmr_gain_per_game": 11.090909090909092,
+                "damage_per_minute": 672.2611934507644
+              }
+            },
+            {
+              "character": "레온",
+              "weapon": "글러브",
+              "games": 2,
+              "grade": "C",
+              "score": 36.4,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 18판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 5.5,
+                  "reference_mean": 4.161705023770748,
+                  "percentile": 7.4,
+                  "adjusted_score": 36.5,
+                  "sample_games": 91519,
+                  "sample_players": 4660
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0,
+                  "reference_mean": 0.4280724087302688,
+                  "percentile": 3.9,
+                  "adjusted_score": 35.4,
+                  "sample_games": 91519,
+                  "sample_players": 4660
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.160249407702894,
+                  "percentile": 12.5,
+                  "adjusted_score": 38.1,
+                  "sample_games": 91519,
+                  "sample_players": 4660
+                }
+              ],
+              "details": {
+                "deaths_per_game": 4.5,
+                "mmr_gain_per_game": -36.5,
+                "damage_per_minute": 690.9216300940438
+              }
+            }
+          ]
+        },
+        {
+          "nickname": "세시아",
+          "currentPatchGames": 50,
+          "benchmarkCoverage": {
+            "mmr_bucket_start": 5000,
+            "mmr_bucket_end": 5500,
+            "expanded": false,
+            "overall_games": 734,
+            "overall_players": 651,
+            "same_pick_games": 8,
+            "same_pick_players": 8,
+            "role_games": 269,
+            "role_players": 245,
+            "minimum_overall_games": 50,
+            "minimum_overall_players": 30,
+            "minimum_same_pick_games": 30,
+            "minimum_same_pick_players": 15,
+            "minimum_role_games": 50,
+            "minimum_role_players": 30,
+            "minimum_combat_peer_games": 3
+          },
+          "pickEvaluations": [
+            {
+              "character": "나딘",
+              "weapon": "석궁",
+              "games": 46,
+              "grade": "B+",
+              "score": 69,
+              "status": "rated",
+              "confidence": "high",
+              "reason": "비슷한 MMR대 플레이어의 경기 결과와 비교한 최근 성적 등급입니다.",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 3.6956521739130435,
+                  "reference_mean": 4.49967997951869,
+                  "percentile": 64.8,
+                  "adjusted_score": 64.8,
+                  "sample_games": 734,
+                  "sample_players": 651
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.5434782608695652,
+                  "reference_mean": 0.3557347670250896,
+                  "percentile": 66.5,
+                  "adjusted_score": 66.5,
+                  "sample_games": 734,
+                  "sample_players": 651
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.1956521739130435,
+                  "reference_mean": 0.10394265232974909,
+                  "percentile": 88.8,
+                  "adjusted_score": 88.8,
+                  "sample_games": 734,
+                  "sample_players": 651
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.608695652173913,
+                "mmr_gain_per_game": 46.608695652173914,
+                "damage_per_minute": 1094.1130965571426
+              }
+            },
+            {
+              "character": "카티야",
+              "weapon": "저격총",
+              "games": 2,
+              "grade": "C+",
+              "score": 43.1,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 18판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 6.5,
+                  "reference_mean": 4.49967997951869,
+                  "percentile": 21.5,
+                  "adjusted_score": 41,
+                  "sample_games": 734,
+                  "sample_players": 651
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0,
+                  "reference_mean": 0.3557347670250896,
+                  "percentile": 30.9,
+                  "adjusted_score": 44,
+                  "sample_games": 734,
+                  "sample_players": 651
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.10394265232974909,
+                  "percentile": 44.4,
+                  "adjusted_score": 48.2,
+                  "sample_games": 734,
+                  "sample_players": 651
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.5,
+                "mmr_gain_per_game": -8.5,
+                "damage_per_minute": 1311.2676056338028
+              }
+            },
+            {
+              "character": "아비게일",
+              "weapon": "도끼",
+              "games": 1,
+              "grade": "C+",
+              "score": 45.9,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 19판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 6,
+                  "reference_mean": 4.49967997951869,
+                  "percentile": 28.8,
+                  "adjusted_score": 45.3,
+                  "sample_games": 734,
+                  "sample_players": 651
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0,
+                  "reference_mean": 0.3557347670250896,
+                  "percentile": 30.9,
+                  "adjusted_score": 45.7,
+                  "sample_games": 734,
+                  "sample_players": 651
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.10394265232974909,
+                  "percentile": 44.4,
+                  "adjusted_score": 48.7,
+                  "sample_games": 734,
+                  "sample_players": 651
+                }
+              ],
+              "details": {
+                "deaths_per_game": 3,
+                "mmr_gain_per_game": -25,
+                "damage_per_minute": 1036.9984686064317
+              }
+            },
+            {
+              "character": "리오",
+              "weapon": "활",
+              "games": 1,
+              "grade": "C+",
+              "score": 44.3,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 19판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 7,
+                  "reference_mean": 4.49967997951869,
+                  "percentile": 14,
+                  "adjusted_score": 42,
+                  "sample_games": 734,
+                  "sample_players": 651
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0,
+                  "reference_mean": 0.3557347670250896,
+                  "percentile": 30.9,
+                  "adjusted_score": 45.7,
+                  "sample_games": 734,
+                  "sample_players": 651
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.10394265232974909,
+                  "percentile": 44.4,
+                  "adjusted_score": 48.7,
+                  "sample_games": 734,
+                  "sample_players": 651
+                }
+              ],
+              "details": {
+                "deaths_per_game": 3,
+                "mmr_gain_per_game": -32,
+                "damage_per_minute": 590.3488372093024
+              }
+            }
+          ]
+        },
+        {
+          "nickname": "겜덕후",
+          "currentPatchGames": 17,
+          "benchmarkCoverage": {
+            "mmr_bucket_start": 4500,
+            "mmr_bucket_end": 5000,
+            "expanded": false,
+            "overall_games": 243,
+            "overall_players": 210,
+            "same_pick_games": 5,
+            "same_pick_players": 5,
+            "role_games": 319,
+            "role_players": 275,
+            "minimum_overall_games": 50,
+            "minimum_overall_players": 30,
+            "minimum_same_pick_games": 30,
+            "minimum_same_pick_players": 15,
+            "minimum_role_games": 50,
+            "minimum_role_players": 30,
+            "minimum_combat_peer_games": 3
+          },
+          "pickEvaluations": [
+            {
+              "character": "유스티나",
+              "weapon": "석궁",
+              "games": 9,
+              "grade": "B",
+              "score": 59.8,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 11판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 3.7777777777777777,
+                  "reference_mean": 4.4474716553287985,
+                  "percentile": 61.9,
+                  "adjusted_score": 58,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.3333333333333333,
+                  "reference_mean": 0.38209750566893425,
+                  "percentile": 59.3,
+                  "adjusted_score": 56.2,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.1111111111111111,
+                  "reference_mean": 0.12469387755102039,
+                  "percentile": 86.2,
+                  "adjusted_score": 74.3,
+                  "sample_games": 243,
+                  "sample_players": 210
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.888888888888889,
+                "mmr_gain_per_game": 22.444444444444443,
+                "damage_per_minute": 856.7323391749211
+              }
+            },
+            {
+              "character": "코렐라인",
+              "weapon": "아르카나",
+              "games": 3,
+              "grade": "B",
+              "score": 53.8,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 17판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 3.6666666666666665,
+                  "reference_mean": 4.4474716553287985,
+                  "percentile": 61.9,
+                  "adjusted_score": 54.6,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.6666666666666666,
+                  "reference_mean": 0.38209750566893425,
+                  "percentile": 64.3,
+                  "adjusted_score": 55.5,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.12469387755102039,
+                  "percentile": 43.1,
+                  "adjusted_score": 47.3,
+                  "sample_games": 243,
+                  "sample_players": 210
+                }
+              ],
+              "details": {
+                "deaths_per_game": 4,
+                "mmr_gain_per_game": 8,
+                "damage_per_minute": 589.7397769516729
+              }
+            },
+            {
+              "character": "아드리아나",
+              "weapon": "투척",
+              "games": 3,
+              "grade": "B",
+              "score": 59.6,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 17판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 2.3333333333333335,
+                  "reference_mean": 4.4474716553287985,
+                  "percentile": 78.1,
+                  "adjusted_score": 60.9,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.6666666666666666,
+                  "reference_mean": 0.38209750566893425,
+                  "percentile": 64.3,
+                  "adjusted_score": 55.5,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.6666666666666666,
+                  "reference_mean": 0.12469387755102039,
+                  "percentile": 88.6,
+                  "adjusted_score": 64.9,
+                  "sample_games": 243,
+                  "sample_players": 210
+                }
+              ],
+              "details": {
+                "deaths_per_game": 1.3333333333333333,
+                "mmr_gain_per_game": 83,
+                "damage_per_minute": 1012.1368421052632
+              }
+            },
+            {
+              "character": "마커스",
+              "weapon": "도끼",
+              "games": 2,
+              "grade": "C+",
+              "score": 44,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 18판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 6,
+                  "reference_mean": 4.4474716553287985,
+                  "percentile": 28.6,
+                  "adjusted_score": 43.2,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0,
+                  "reference_mean": 0.38209750566893425,
+                  "percentile": 29.3,
+                  "adjusted_score": 43.5,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.12469387755102039,
+                  "percentile": 43.1,
+                  "adjusted_score": 47.8,
+                  "sample_games": 243,
+                  "sample_players": 210
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.5,
+                "mmr_gain_per_game": -31.5,
+                "damage_per_minute": 188.26254826254825
+              }
+            }
+          ]
+        },
+        {
+          "nickname": "사린",
+          "currentPatchGames": 18,
+          "benchmarkCoverage": {
+            "mmr_bucket_start": 7500,
+            "mmr_bucket_end": 8000,
+            "expanded": false,
+            "overall_games": 42694,
+            "overall_players": 5203,
+            "same_pick_games": 1248,
+            "same_pick_players": 464,
+            "role_games": 6379,
+            "role_players": 1598,
+            "minimum_overall_games": 50,
+            "minimum_overall_players": 30,
+            "minimum_same_pick_games": 30,
+            "minimum_same_pick_players": 15,
+            "minimum_role_games": 50,
+            "minimum_role_players": 30,
+            "minimum_combat_peer_games": 3
+          },
+          "pickEvaluations": [
+            {
+              "character": "카티야",
+              "weapon": "저격총",
+              "games": 15,
+              "grade": "A",
+              "score": 78.5,
+              "status": "provisional",
+              "confidence": "medium",
+              "reason": "등급 확정까지 5판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 3.6,
+                  "reference_mean": 4.594583162052113,
+                  "percentile": 81.3,
+                  "adjusted_score": 77.1,
+                  "sample_games": 42694,
+                  "sample_players": 5203
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.6,
+                  "reference_mean": 0.3365918604143752,
+                  "percentile": 85.7,
+                  "adjusted_score": 80.9,
+                  "sample_games": 42694,
+                  "sample_players": 5203
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.2,
+                  "reference_mean": 0.10914112810490302,
+                  "percentile": 82.1,
+                  "adjusted_score": 77.8,
+                  "sample_games": 42694,
+                  "sample_players": 5203
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.933333333333333,
+                "mmr_gain_per_game": 16.933333333333334,
+                "damage_per_minute": 994.3207826860362
+              }
+            },
+            {
+              "character": "마커스",
+              "weapon": "도끼",
+              "games": 2,
+              "grade": "B",
+              "score": 52.9,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 18판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 4.5,
+                  "reference_mean": 4.594583162052113,
+                  "percentile": 55.7,
+                  "adjusted_score": 51.8,
+                  "sample_games": 42694,
+                  "sample_players": 5203
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.5,
+                  "reference_mean": 0.3365918604143752,
+                  "percentile": 77.6,
+                  "adjusted_score": 58.7,
+                  "sample_games": 42694,
+                  "sample_players": 5203
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.10914112810490302,
+                  "percentile": 28.5,
+                  "adjusted_score": 43.2,
+                  "sample_games": 42694,
+                  "sample_players": 5203
+                }
+              ],
+              "details": {
+                "deaths_per_game": 3,
+                "mmr_gain_per_game": -5.5,
+                "damage_per_minute": 708.3202945237
+              }
+            },
+            {
+              "character": "나딘",
+              "weapon": "석궁",
+              "games": 1,
+              "grade": "C+",
+              "score": 48.9,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 19판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 4,
+                  "reference_mean": 4.594583162052113,
+                  "percentile": 72.6,
+                  "adjusted_score": 55.1,
+                  "sample_games": 42694,
+                  "sample_players": 5203
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0,
+                  "reference_mean": 0.3365918604143752,
+                  "percentile": 12.1,
+                  "adjusted_score": 41.5,
+                  "sample_games": 42694,
+                  "sample_players": 5203
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.10914112810490302,
+                  "percentile": 28.5,
+                  "adjusted_score": 45.2,
+                  "sample_games": 42694,
+                  "sample_players": 5203
+                }
+              ],
+              "details": {
+                "deaths_per_game": 5,
+                "mmr_gain_per_game": -30,
+                "damage_per_minute": 1042.428842504744
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "capturedAt": "2026-10-26T17:21:53.353Z",
+      "patch": {
+        "patch_key": "12.6.0",
+        "version_season": 12,
+        "version_major": 6,
+        "version_minor": 0,
+        "patch_start_at": "2026-10-15T02:00:00.000Z",
+        "latest_match_at": "2026-10-26T15:32:35.035+00:00"
+      },
+      "seasonId": 41,
+      "validation": {
+        "checks": 91,
+        "failures": []
+      },
+      "players": [
+        {
+          "nickname": "겜덕후",
+          "currentPatchGames": 21,
+          "benchmarkCoverage": {
+            "mmr_bucket_start": 4500,
+            "mmr_bucket_end": 5000,
+            "expanded": false,
+            "overall_games": 243,
+            "overall_players": 210,
+            "same_pick_games": 5,
+            "same_pick_players": 5,
+            "role_games": 319,
+            "role_players": 275,
+            "minimum_overall_games": 50,
+            "minimum_overall_players": 30,
+            "minimum_same_pick_games": 30,
+            "minimum_same_pick_players": 15,
+            "minimum_role_games": 50,
+            "minimum_role_players": 30,
+            "minimum_combat_peer_games": 3
+          },
+          "pickEvaluations": [
+            {
+              "character": "유스티나",
+              "weapon": "석궁",
+              "games": 13,
+              "grade": "B+",
+              "score": 61.9,
+              "status": "provisional",
+              "confidence": "medium",
+              "reason": "등급 확정까지 7판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 3.5384615384615383,
+                  "reference_mean": 4.4474716553287985,
+                  "percentile": 61.9,
+                  "adjusted_score": 59.6,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.46153846153846156,
+                  "reference_mean": 0.38209750566893425,
+                  "percentile": 59.5,
+                  "adjusted_score": 57.7,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.15384615384615385,
+                  "reference_mean": 0.12469387755102039,
+                  "percentile": 86.2,
+                  "adjusted_score": 79.2,
+                  "sample_games": 243,
+                  "sample_players": 210
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.6153846153846154,
+                "mmr_gain_per_game": 31.307692307692307,
+                "damage_per_minute": 798.060606060606
+              }
+            },
+            {
+              "character": "코렐라인",
+              "weapon": "아르카나",
+              "games": 3,
+              "grade": "B",
+              "score": 53.8,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 17판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 3.6666666666666665,
+                  "reference_mean": 4.4474716553287985,
+                  "percentile": 61.9,
+                  "adjusted_score": 54.6,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.6666666666666666,
+                  "reference_mean": 0.38209750566893425,
+                  "percentile": 64.3,
+                  "adjusted_score": 55.5,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.12469387755102039,
+                  "percentile": 43.1,
+                  "adjusted_score": 47.3,
+                  "sample_games": 243,
+                  "sample_players": 210
+                }
+              ],
+              "details": {
+                "deaths_per_game": 4,
+                "mmr_gain_per_game": 8,
+                "damage_per_minute": 589.7397769516729
+              }
+            },
+            {
+              "character": "아드리아나",
+              "weapon": "투척",
+              "games": 3,
+              "grade": "B",
+              "score": 59.6,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 17판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 2.3333333333333335,
+                  "reference_mean": 4.4474716553287985,
+                  "percentile": 78.1,
+                  "adjusted_score": 60.9,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0.6666666666666666,
+                  "reference_mean": 0.38209750566893425,
+                  "percentile": 64.3,
+                  "adjusted_score": 55.5,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0.6666666666666666,
+                  "reference_mean": 0.12469387755102039,
+                  "percentile": 88.6,
+                  "adjusted_score": 64.9,
+                  "sample_games": 243,
+                  "sample_players": 210
+                }
+              ],
+              "details": {
+                "deaths_per_game": 1.3333333333333333,
+                "mmr_gain_per_game": 83,
+                "damage_per_minute": 1012.1368421052632
+              }
+            },
+            {
+              "character": "마커스",
+              "weapon": "도끼",
+              "games": 2,
+              "grade": "C+",
+              "score": 44,
+              "status": "provisional",
+              "confidence": "low",
+              "reason": "등급 확정까지 18판 더 필요",
+              "basis": "mmr_results",
+              "metrics": [
+                {
+                  "id": "average_rank",
+                  "label": "평균 순위",
+                  "weight": 0.5,
+                  "value": 6,
+                  "reference_mean": 4.4474716553287985,
+                  "percentile": 28.6,
+                  "adjusted_score": 43.2,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "top3_rate",
+                  "label": "TOP3 비율",
+                  "weight": 0.35,
+                  "value": 0,
+                  "reference_mean": 0.38209750566893425,
+                  "percentile": 29.3,
+                  "adjusted_score": 43.5,
+                  "sample_games": 243,
+                  "sample_players": 210
+                },
+                {
+                  "id": "win_rate",
+                  "label": "승률",
+                  "weight": 0.15,
+                  "value": 0,
+                  "reference_mean": 0.12469387755102039,
+                  "percentile": 43.1,
+                  "adjusted_score": 47.8,
+                  "sample_games": 243,
+                  "sample_players": 210
+                }
+              ],
+              "details": {
+                "deaths_per_game": 2.5,
+                "mmr_gain_per_game": -31.5,
+                "damage_per_minute": 188.26254826254825
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

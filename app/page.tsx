@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeatureEntries } from "@/components/FeatureEntries";
+import { SnapshotStatus } from "@/components/SnapshotStatus";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getTargetPatchKey } from "@/lib/patch-version";
 import {
@@ -34,6 +35,7 @@ export default async function HomePage() {
 
       <FeatureEntries />
       <SetupNotice />
+      <SnapshotStatus />
 
       <section className="metrics-strip">
         <div className="metric metric-cell">

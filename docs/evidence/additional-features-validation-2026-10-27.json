@@ -1,0 +1,79 @@
+{
+  "dateKST": "2026-10-27",
+  "scope": "Additional features from F-01 through F-12 with explicitly limited infrastructure-dependent features",
+  "analysisCacheVersion": 20,
+  "automated": {
+    "vitest": { "exitCode": 0, "files": 33, "passed": 212, "failed": 0 },
+    "typecheck": { "exitCode": 0 },
+    "productionBuild": { "exitCode": 0, "distDir": ".next-qa", "recommendPageDynamic": true },
+    "fixedRealCaseOfflineAudit": { "checks": 328, "failures": 0, "uniqueGames": 147, "cohorts": "none" }
+  },
+  "browserRealReadonly": {
+    "tierFilter": { "query": "카티야", "rankScope": "all", "weapon": 11, "sort": "winRate", "minGames": 100, "resultRows": 1 },
+    "listDetailGamesEqual": { "list": 6344, "detail": 6344 },
+    "returnLinkPreserves": ["q", "rankScope", "weapon", "sort", "minGames"],
+    "patchTrendRows": 6,
+    "recommendation": {
+      "playerNicknameProvided": false,
+      "teammateNicknamesProvided": false,
+      "teammates": ["72:11", "31:7"],
+      "candidates": 5,
+      "topDisplayedScore": 38.1,
+      "displayedContributions": [24.6, 0, 13.5, 0],
+      "missingCompositionBadge": true,
+      "candidateSampleComparison": true
+    },
+    "mobileExpandedRecommendation": {
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentScrollWidth": 375,
+      "comparisonVisibleWidth": 297,
+      "comparisonScrollWidth": 820,
+      "horizontalDocumentOverflow": false
+    }
+  },
+  "browserFixtureOnly": {
+    "origin": "http://127.0.0.1:3200",
+    "productionUiProxy": true,
+    "analysisResponse": "Synthetic fixture built with the actual pure analysis builder",
+    "externalAnalysisCollection": false,
+    "databaseWrites": false,
+    "allGames": 40,
+    "selectedPick": "72:11",
+    "selectedGames": 20,
+    "pickQueryLoadedDirectly": true,
+    "progressStagesObserved": true,
+    "equipmentTraitsSkillsRouteExpanded": true,
+    "manualLocalHistoryAndNoteSaved": true,
+    "sampleEvidenceQuestionAnswered": true,
+    "jsonDownloadParsed": { "schemaVersion": 1, "selectedPick": "72:11", "analysisVersion": 20, "matchDetailsDefaultExcluded": true },
+    "csvDownloadParsed": { "containsPatch": true, "containsMissingData": true, "containsCalculationVersion20": true, "rows": 36 },
+    "mobileAnalysisToolsDocumentOverflow": false
+  },
+  "readonlyHttp": {
+    "unknownCharacterStatus": 404,
+    "unknownCharacterPageRendered": true,
+    "localExampleAdminTokenStatus": 503,
+    "localExampleCronTokenNeedsConfiguration": true,
+    "statusServiceDatabase": "ready",
+    "snapshotsStale": true,
+    "snapshotsInconsistent": true,
+    "details": "additions-readonly-status-2026-10-27.json"
+  },
+  "limitedFeatures": {
+    "F-08": "Single-process progress and bounded request deduplication; no durable worker queue",
+    "F-09": "Manual device-local history only; no account sync",
+    "F-10": "Files and latest-query link; no immutable published result ID",
+    "F-11": "Deterministic grounded evidence lookup; no generative conversation",
+    "F-12": "Blocked on actual video or replay/timeline input"
+  },
+  "notExecuted": [
+    "Live player collection or force refresh",
+    "Operational collection or snapshot build",
+    "Database migration or permission change",
+    "Patch import writes",
+    "Deployment, push, paid API upgrade or credential changes",
+    "Multi-process queue recovery or global request-quota load test"
+  ],
+  "remainingOperationalIssue": "QA-005 remains open: batching and diagnostics were added, but atomic publication, checkpoint recovery and production-scale successful rebuild are unverified."
+}

@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { weaponCodeForType, weaponName } from "@/lib/weapons";
 import type {
   Character,
   PlayerDataScope,
@@ -11,6 +12,10 @@ export function RecommendationForm({ characters }: { characters: Character[] }) 
   const [nickname, setNickname] = useState("");
   const [playerDataScope, setPlayerDataScope] = useState<PlayerDataScope>("season");
   const [teammateCodes, setTeammateCodes] = useState(["", ""]);
+  const [teammateNicknames, setTeammateNicknames] = useState(["", ""]);
+  const [teammateWeapons, setTeammateWeapons] = useState(["", ""]);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), []);
   const [result, setResult] = useState<Recommendation[]>([]);
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -32,15 +37,20 @@ export function RecommendationForm({ characters }: { characters: Character[] }) 
     setStatus("추천을 계산하고 있습니다.");
     setIsLoading(true);
     setResult([]);
+    request.current?.abort();
+    const controller = new AbortController(); request.current = controller;
 
     try {
       const response = await fetch("/api/recommendations", {
         method: "POST",
         headers: { "content-type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           nickname: nickname.trim() || undefined,
           playerDataScope,
-          teammateCharacterCodes: selectedNumbers(teammateCodes).slice(0, 2),
+          teammates: teammateCodes.map((code, index) => ({ nickname: teammateNicknames[index].trim() || undefined,
+            characterCode: Number(code) || undefined, weaponCode: Number(teammateWeapons[index]) || undefined }))
+            .filter((item) => item.nickname || item.characterCode),
           limit: 5
         })
       });
@@ -54,13 +64,14 @@ export function RecommendationForm({ characters }: { characters: Character[] }) 
       setResult(json.data ?? []);
       setStatus((json.data ?? []).length ? "" : "조건에 맞는 추천 후보가 없습니다.");
     } catch {
-      setStatus("추천 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      if (!controller.signal.aborted) setStatus("추천 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
       setIsLoading(false);
     }
   }
 
   function updateTeammate(index: number, value: string) {
+    setTeammateWeapons((current) => current.map((item, i) => i === index ? "" : item));
     setTeammateCodes((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? value : item))
     );
@@ -110,6 +121,7 @@ export function RecommendationForm({ characters }: { characters: Character[] }) 
             <span className="results-count">{result.length}개 후보</span>
           </div>
           <RecommendationHero item={result[0]} />
+          <RecommendationComparison items={result} />
           {result.slice(1).map((item, index) => (
             <RecommendationRow item={item} rank={index + 2} key={item.character.character_code} />
           ))}
@@ -134,6 +146,8 @@ export function RecommendationForm({ characters }: { characters: Character[] }) 
             플레이어 닉네임
             <input
               value={nickname}
+              maxLength={64}
+              disabled={isLoading}
               onChange={(event) => setNickname(event.target.value)}
               placeholder="플레이어 닉네임을 입력하세요"
             />
@@ -143,6 +157,7 @@ export function RecommendationForm({ characters }: { characters: Character[] }) 
             데이터 기준
             <select
               value={playerDataScope}
+              disabled={isLoading}
               onChange={(event) => setPlayerDataScope(event.target.value as PlayerDataScope)}
             >
               <option value="season">이번 시즌 전체</option>
@@ -153,7 +168,11 @@ export function RecommendationForm({ characters }: { characters: Character[] }) 
           <fieldset className="teammate-fields">
             <legend>팀원 실험체</legend>
             {[0, 1].map((index) => (
-              <label key={index}>
+              <div className="team-pick-input stack" key={index}><label>
+                팀원 {index + 1} 닉네임 (선택)
+                <input value={teammateNicknames[index]} maxLength={64} disabled={isLoading} placeholder="입력하면 실제 사용 기록 반영"
+                  onChange={(event) => setTeammateNicknames((current) => current.map((item, i) => i === index ? event.target.value : item))} />
+              </label><label>
                 <span>팀원 {index + 1}</span>
                 <CharacterSelect
                   characters={characterOptions}
@@ -161,8 +180,14 @@ export function RecommendationForm({ characters }: { characters: Character[] }) 
                   onChange={(value) => updateTeammate(index, value)}
                   placeholder="실험체를 선택하세요"
                   disabledCodes={teammateCodes.filter((_, itemIndex) => itemIndex !== index)}
+                  disabled={isLoading}
                 />
-              </label>
+              </label><label>팀원 {index + 1} 무기 (선택)<select value={teammateWeapons[index]} disabled={!teammateCodes[index] || isLoading}
+                onChange={(event) => setTeammateWeapons((current) => current.map((item, i) => i === index ? event.target.value : item))}>
+                <option value="">사용 기록 또는 조합 기준</option>
+                {(characters.find((item) => item.character_code === Number(teammateCodes[index]))?.weapon_types ?? []).map((type) => weaponCodeForType(type))
+                  .filter((code): code is number => Boolean(code)).map((code) => <option key={code} value={code}>{weaponName(code)}</option>)}
+              </select></label><small className="muted">닉네임만 입력하면 선택한 기간의 가장 많이 사용한 실험체·대표 무기를 적용합니다.</small></div>
             ))}
           </fieldset>
         </div>
@@ -182,9 +207,9 @@ export function RecommendationForm({ characters }: { characters: Character[] }) 
           </p>
         </div>
         <div className="recommendation-criteria">
-          <Criteria index="01" title="조합 궁합">선택한 팀 구성과의 시너지와 상성을 분석합니다.</Criteria>
-          <Criteria index="02" title="현재 패치">현재 메타에서 검증된 성능을 평가합니다.</Criteria>
-          <Criteria index="03" title="플레이 스타일">이번 시즌에 실제 사용한 실험체별 기록을 비교합니다.</Criteria>
+          <Criteria index="01" title="조합 궁합">선택한 팀 구성의 실제 조합 표본과 개인 사용 기록을 확인합니다.</Criteria>
+          <Criteria index="02" title="현재 패치">현재 메타의 관측 성적과 표본을 확인합니다.</Criteria>
+          <Criteria index="03" title="플레이 스타일">선택한 기간에 실제 사용한 실험체별 기록을 비교합니다.</Criteria>
         </div>
         <div className="recommendation-radar" aria-hidden="true"><span /></div>
         <div className="intro-callout">
@@ -218,13 +243,14 @@ function RecommendationHero({ item }: { item: Recommendation }) {
         <h3>{name}</h3>
         <span className="score-label">추천 점수</span>
         <strong className="recommendation-score">{(item.score * 100).toFixed(1)}</strong>
-        <span className={`confidence confidence-${item.confidence}`}>신뢰도 {confidenceLabel(item.confidence)}</span>
+        <span className={`confidence confidence-${item.confidence}`}>{item.context.compGames ? "조합" : "메타"} 신뢰도 {confidenceLabel(item.confidence)}</span>
+        {!item.context.compGames ? <span className="badge warn">선택 조합 미평가</span> : null}
         <p>{recommendationSummary(item)}</p>
       </div>
       <div className="hero-reference">
-        <span className="synergy-label">함께하면 좋은 실험체</span>
+        <span className="synergy-label">{item.context.compGames ? "관측된 조합 구성" : "선택한 팀 구성"}</span>
         <SynergyPicks item={item} />
-        <span className="synergy-source">{item.context.compName ?? item.context.title}</span>
+        <span className="synergy-source">{item.context.compGames ? item.context.compName ?? item.context.title : "아래 수치는 추천 실험체의 개별 메타 기준입니다."}</span>
         <RecommendationMetrics item={item} />
       </div>
       <details className="recommendation-details">
@@ -249,11 +275,11 @@ function RecommendationRow({ item, rank }: { item: Recommendation; rank: number 
         <h3>{name}</h3>
         <span>추천 점수 <strong>{(item.score * 100).toFixed(1)}</strong></span>
         <div className="compact-synergy">
-          <small>함께하면 좋은 픽</small>
+          <small>{item.context.compGames ? "관측된 조합 구성" : "선택한 팀 구성"}</small>
           <b>{synergyLabel(item)}</b>
         </div>
       </div>
-      <span className={`confidence confidence-${item.confidence}`}>신뢰도 {confidenceLabel(item.confidence)}</span>
+      <span className={`confidence confidence-${item.confidence}`}>{item.context.compGames ? "조합" : "메타"} 신뢰도 {confidenceLabel(item.confidence)}{!item.context.compGames ? " · 조합 미평가" : ""}</span>
       <div className="compact-metrics">
         <span>TOP3 <strong>{displayPercent(item.metrics.top3Rate)}</strong></span>
         <span>승률 <strong>{displayPercent(item.metrics.winRate)}</strong></span>
@@ -323,9 +349,14 @@ function RecommendationEvidence({ item }: { item: Recommendation }) {
         <span>{context.title}</span>
         <span className="badge">{context.dataScope === "current_patch" ? "현재 패치" : "이번 시즌 전체"}</span>
       </div>
+      <RecommendationScoreBreakdown item={item} />
+      {context.teammateProfiles?.length ? <div className="evidence-summary"><strong>팀원 사용 기록</strong>{context.teammateProfiles.map((profile) =>
+        <span key={profile.nickname}>{profile.nickname} · {context.baseCharacters.find((pick) => pick.character_code === profile.characterCode)?.name_ko ?? profile.characterCode}
+          {profile.weaponCode ? ` / ${weaponName(profile.weaponCode)}` : ""} · 실험체 전체 {profile.games}판</span>)}
+        <small>무기는 대표 무기 또는 직접 선택한 조건입니다. 개인 사용 횟수는 실험체 전체 기록입니다.</small></div> : null}
       {context.playerPerformance ? (
         <div className="player-performance-evidence">
-          <span>이 플레이어의 추천 실험체 기록</span>
+          <span>이 플레이어의 추천 실험체 전체 무기 기록</span>
           <div className="performance-facts">
             <PerformanceFact label="플레이" value={`${context.playerPerformance.games}판`} />
             <PerformanceFact label="가한 피해" value={formatNumber(context.playerPerformance.average_damage_to_player)} />
@@ -384,15 +415,16 @@ function PerformanceFact({ label, value }: { label: string; value: string }) {
   return <span><small>{label}</small><strong>{value}</strong></span>;
 }
 
-function CharacterSelect({ characters, value, onChange, placeholder, disabledCodes = [] }: {
+function CharacterSelect({ characters, value, onChange, placeholder, disabledCodes = [], disabled = false }: {
   characters: Character[];
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   disabledCodes?: string[];
+  disabled?: boolean;
 }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)}>
+    <select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
       <option value="">{placeholder}</option>
       {characters.map((character) => {
         const value = String(character.character_code);
@@ -404,6 +436,22 @@ function CharacterSelect({ characters, value, onChange, placeholder, disabledCod
 
 function selectedNumbers(values: string[]) {
   return [...new Set(values.map((value) => Number(value)).filter(Boolean))];
+}
+
+function RecommendationScoreBreakdown({ item }: { item: Recommendation }) {
+  if (!item.scoreBreakdown) return null;
+  return <div className="score-breakdown"><strong>실제 점수 계산 근거</strong><div className="table-wrap" tabIndex={0} role="region" aria-label="추천 점수 기여도">
+    <table><thead><tr><th>근거</th><th>근거 점수</th><th>반영 비중</th><th>최종 기여</th></tr></thead><tbody>{item.scoreBreakdown.map((part) =>
+      <tr key={part.key}><td>{part.label}</td><td>{(part.score * 100).toFixed(1)}</td><td>{(part.weight * 100).toFixed(1)}%</td><td>{(part.contribution * 100).toFixed(1)}점</td></tr>)}</tbody></table></div>
+    <p className="muted">합계 {(item.score * 100).toFixed(1)}점 · 반올림 전 가중합입니다. 추천 점수는 예상 승률을 의미하지 않습니다.</p>
+  </div>;
+}
+function RecommendationComparison({ items }: { items: Recommendation[] }) {
+  return <details className="panel recommendation-comparison"><summary>후보 {items.length}개를 같은 기준으로 비교</summary>
+    <div className="table-wrap" tabIndex={0} role="region" aria-label="추천 후보 비교"><table><thead><tr><th>후보</th><th>추천 점수</th><th>메타 표본</th><th>조합 표본</th><th>개인 표본</th></tr></thead>
+      <tbody>{items.map((item) => <tr key={item.character.character_code}><td>{item.character.display_name ?? item.character.name_ko}</td><td>{(item.score * 100).toFixed(1)}</td>
+        <td>{item.metrics.metaGames}판</td><td>{item.context.compGames ? `${item.context.compGames}판` : "평가 보류"}</td><td>{item.context.playerPerformance ? `${item.context.playerPerformance.games}판 · 실험체 전체` : "개인 기록 없음"}</td></tr>)}</tbody></table></div>
+  </details>;
 }
 
 function confidenceLabel(value: Recommendation["confidence"]) {

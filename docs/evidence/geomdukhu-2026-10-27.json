@@ -1,0 +1,740 @@
+{
+  "generatedAt": "2026-10-26T17:22:18.537Z",
+  "capturedAt": "2026-10-26T17:21:53.353Z",
+  "source": "Read-only official API and saved match_players replay",
+  "patch": {
+    "patch_key": "12.6.0",
+    "version_season": 12,
+    "version_major": 6,
+    "version_minor": 0,
+    "patch_start_at": "2026-10-15T02:00:00.000Z",
+    "latest_match_at": "2026-10-26T15:32:35.035+00:00"
+  },
+  "seasonId": 41,
+  "validation": {
+    "checks": 79,
+    "failures": []
+  },
+  "uniqueGames": 21,
+  "players": [
+    {
+      "nickname": "겜덕후",
+      "currentPatchGames": 21,
+      "gameIds": [
+        67013193,
+        67012440,
+        67011572,
+        67011069,
+        66982041,
+        66981790,
+        66981503,
+        66981168,
+        66980600,
+        66980196,
+        66979705,
+        66978852,
+        66977991,
+        66977249,
+        66976647,
+        66958435,
+        66957827,
+        66954796,
+        66953470,
+        66952603,
+        66951360
+      ],
+      "missingVersionSeason": 21,
+      "acceptedWithoutContext": 0,
+      "acceptedWithContext": 21,
+      "cachedGames": 4,
+      "cachedPatch": "12.6.0",
+      "cachedVersion": 15,
+      "cachedAt": "2026-10-25T09:13:07.268+00:00",
+      "storedLookup": {
+        "identity": "nickname",
+        "error": null
+      },
+      "overlaps": 4,
+      "fieldMismatches": {
+        "play_time": 0,
+        "player_kill": 0,
+        "player_assistant": 0,
+        "player_deaths": 0,
+        "damage_to_player": 0,
+        "damage_from_player": 0,
+        "cc_time_to_player": 0,
+        "total_gain_vf_credit": 0,
+        "total_spent_vf_credit": 4
+      },
+      "expected": {
+        "kills": 2.1904761904761907,
+        "assists": 4.904761904761905,
+        "deaths": 2.619047619047619,
+        "damage_dealt": 13448.285714285714,
+        "damage_taken": 11426,
+        "cc_seconds": 36.79682690476189,
+        "character_level": 17.285714285714285,
+        "weapon_level": 17.047619047619047,
+        "credits_gained": 988.8571428571429,
+        "credits_spent": 810.6190476190476,
+        "legendary_crafts": 3.9523809523809526,
+        "mythic_crafts": 0.8095238095238095,
+        "tactical_level": 1.0952380952380953,
+        "hunts": 40.76190476190476,
+        "monster_damage": 73527.76190476191,
+        "team_kills": 9.761904761904763,
+        "self_healing": 11194,
+        "ally_healing": 0,
+        "shield_absorb": 1090.952380952381,
+        "ally_revives": 0.09523809523809523,
+        "view_score": 21.857142857142858,
+        "consoles": 5.9523809523809526,
+        "mmr_base": 29.38095238095238,
+        "hyperloops": 3.1904761904761907,
+        "early_deaths": 0.42857142857142855,
+        "battle_zone_deaths": 0,
+        "average_rank": 3.619047619047619,
+        "cameras_placed": 10.047619047619047,
+        "cameras_removed": 0.9523809523809523,
+        "active_minutes": 17.597619047619048,
+        "spectator_minutes": 0.14206349206349206,
+        "match_minutes": 17.73968253968254,
+        "mmr_actual": 29.38095238095238,
+        "win_rate": 0.19047619047619047,
+        "top3_rate": 0.47619047619047616
+      },
+      "statistics": {
+        "games": 21,
+        "metrics": [
+          {
+            "id": "kills",
+            "label": "킬",
+            "group": "combat",
+            "unit": "count",
+            "value": 2.1904761904761907,
+            "total": 46,
+            "sample_games": 21
+          },
+          {
+            "id": "assists",
+            "label": "어시스트",
+            "group": "combat",
+            "unit": "count",
+            "value": 4.904761904761905,
+            "total": 103,
+            "sample_games": 21
+          },
+          {
+            "id": "deaths",
+            "label": "사망",
+            "group": "combat",
+            "unit": "count",
+            "value": 2.619047619047619,
+            "total": 55,
+            "sample_games": 21
+          },
+          {
+            "id": "damage_dealt",
+            "label": "가한 플레이어 피해",
+            "group": "combat",
+            "unit": "count",
+            "value": 13448.285714285714,
+            "total": 282414,
+            "sample_games": 21
+          },
+          {
+            "id": "damage_taken",
+            "label": "받은 플레이어 피해",
+            "group": "combat",
+            "unit": "count",
+            "value": 11426,
+            "total": 239946,
+            "sample_games": 21
+          },
+          {
+            "id": "cc_seconds",
+            "label": "군중제어 시간",
+            "group": "combat",
+            "unit": "seconds",
+            "value": 36.79682690476189,
+            "total": 772.7333649999998,
+            "sample_games": 21
+          },
+          {
+            "id": "character_level",
+            "label": "종료 캐릭터 레벨",
+            "group": "growth",
+            "unit": "count",
+            "value": 17.285714285714285,
+            "total": 363,
+            "sample_games": 21
+          },
+          {
+            "id": "weapon_level",
+            "label": "종료 무기 숙련도",
+            "group": "growth",
+            "unit": "count",
+            "value": 17.047619047619047,
+            "total": 358,
+            "sample_games": 21
+          },
+          {
+            "id": "credits_gained",
+            "label": "획득 크레딧",
+            "group": "growth",
+            "unit": "count",
+            "value": 988.8571428571429,
+            "total": 20766,
+            "sample_games": 21
+          },
+          {
+            "id": "credits_spent",
+            "label": "사용 크레딧",
+            "group": "growth",
+            "unit": "count",
+            "value": 810.6190476190476,
+            "total": 17023,
+            "sample_games": 21
+          },
+          {
+            "id": "legendary_crafts",
+            "label": "전설 제작",
+            "group": "growth",
+            "unit": "count",
+            "value": 3.9523809523809526,
+            "total": 83,
+            "sample_games": 21
+          },
+          {
+            "id": "mythic_crafts",
+            "label": "초월 제작",
+            "group": "growth",
+            "unit": "count",
+            "value": 0.8095238095238095,
+            "total": 17,
+            "sample_games": 21
+          },
+          {
+            "id": "tactical_level",
+            "label": "종료 전술 스킬 레벨",
+            "group": "growth",
+            "unit": "count",
+            "value": 1.0952380952380953,
+            "total": 23,
+            "sample_games": 21
+          },
+          {
+            "id": "hunts",
+            "label": "야생동물 처치",
+            "group": "farming",
+            "unit": "count",
+            "value": 40.76190476190476,
+            "total": 856,
+            "sample_games": 21
+          },
+          {
+            "id": "monster_damage",
+            "label": "야생동물 피해",
+            "group": "farming",
+            "unit": "count",
+            "value": 73527.76190476191,
+            "total": 1544083,
+            "sample_games": 21
+          },
+          {
+            "id": "team_kills",
+            "label": "팀 킬",
+            "group": "team",
+            "unit": "count",
+            "value": 9.761904761904763,
+            "total": 205,
+            "sample_games": 21
+          },
+          {
+            "id": "self_healing",
+            "label": "자가 회복",
+            "group": "team",
+            "unit": "count",
+            "value": 11194,
+            "total": 235074,
+            "sample_games": 21
+          },
+          {
+            "id": "ally_healing",
+            "label": "팀 회복",
+            "group": "team",
+            "unit": "count",
+            "value": 0,
+            "total": 0,
+            "sample_games": 21
+          },
+          {
+            "id": "shield_absorb",
+            "label": "보호 흡수",
+            "group": "team",
+            "unit": "count",
+            "value": 1090.952380952381,
+            "total": 22910,
+            "sample_games": 21
+          },
+          {
+            "id": "ally_revives",
+            "label": "크레딧으로 아군 부활",
+            "group": "team",
+            "unit": "count",
+            "value": 0.09523809523809523,
+            "total": 2,
+            "sample_games": 21
+          },
+          {
+            "id": "view_score",
+            "label": "시야 기여 점수",
+            "group": "vision",
+            "unit": "count",
+            "value": 21.857142857142858,
+            "total": 459,
+            "sample_games": 21
+          },
+          {
+            "id": "cameras_placed",
+            "label": "카메라 설치",
+            "group": "vision",
+            "unit": "count",
+            "value": 10.047619047619047,
+            "total": 211,
+            "sample_games": 21
+          },
+          {
+            "id": "cameras_removed",
+            "label": "카메라 제거",
+            "group": "vision",
+            "unit": "count",
+            "value": 0.9523809523809523,
+            "total": 20,
+            "sample_games": 21
+          },
+          {
+            "id": "consoles",
+            "label": "보안 콘솔 사용",
+            "group": "vision",
+            "unit": "count",
+            "value": 5.9523809523809526,
+            "total": 125,
+            "sample_games": 21
+          },
+          {
+            "id": "active_minutes",
+            "label": "활동 시간",
+            "group": "stability",
+            "unit": "minutes",
+            "value": 17.597619047619048,
+            "total": 369.55,
+            "sample_games": 21
+          },
+          {
+            "id": "spectator_minutes",
+            "label": "관전 시간",
+            "group": "stability",
+            "unit": "minutes",
+            "value": 0.14206349206349206,
+            "total": 2.9833333333333334,
+            "sample_games": 21
+          },
+          {
+            "id": "match_minutes",
+            "label": "활동+관전 시간",
+            "group": "stability",
+            "unit": "minutes",
+            "value": 17.73968253968254,
+            "total": 372.53333333333336,
+            "sample_games": 21
+          },
+          {
+            "id": "mmr_actual",
+            "label": "실제 RP 증감",
+            "group": "stability",
+            "unit": "mmr",
+            "value": 29.38095238095238,
+            "total": 617,
+            "sample_games": 21
+          },
+          {
+            "id": "mmr_base",
+            "label": "기본 RP 증감",
+            "group": "stability",
+            "unit": "mmr",
+            "value": 29.38095238095238,
+            "total": 617,
+            "sample_games": 21
+          },
+          {
+            "id": "hyperloops",
+            "label": "하이퍼루프 사용",
+            "group": "stability",
+            "unit": "count",
+            "value": 3.1904761904761907,
+            "total": 67,
+            "sample_games": 21
+          },
+          {
+            "id": "early_deaths",
+            "label": "초반 단계 사망",
+            "group": "stability",
+            "unit": "count",
+            "value": 0.42857142857142855,
+            "total": 9,
+            "sample_games": 21
+          },
+          {
+            "id": "battle_zone_deaths",
+            "label": "전장 사망",
+            "group": "stability",
+            "unit": "count",
+            "value": 0,
+            "total": 0,
+            "sample_games": 21
+          },
+          {
+            "id": "win_rate",
+            "label": "승률",
+            "group": "stability",
+            "unit": "percent",
+            "value": 0.19047619047619047,
+            "total": 4,
+            "sample_games": 21
+          },
+          {
+            "id": "top3_rate",
+            "label": "TOP3 비율",
+            "group": "stability",
+            "unit": "percent",
+            "value": 0.47619047619047616,
+            "total": 10,
+            "sample_games": 21
+          },
+          {
+            "id": "average_rank",
+            "label": "평균 순위",
+            "group": "stability",
+            "unit": "rank",
+            "value": 3.619047619047619,
+            "total": 76,
+            "sample_games": 21
+          }
+        ]
+      },
+      "zeroRpEndpoints": [],
+      "cohortGames": 1259,
+      "cohortError": null,
+      "benchmarkCoverage": {
+        "mmr_bucket_start": 4500,
+        "mmr_bucket_end": 5000,
+        "expanded": false,
+        "overall_games": 243,
+        "overall_players": 210,
+        "same_pick_games": 5,
+        "same_pick_players": 5,
+        "role_games": 319,
+        "role_players": 275,
+        "minimum_overall_games": 50,
+        "minimum_overall_players": 30,
+        "minimum_same_pick_games": 30,
+        "minimum_same_pick_players": 15,
+        "minimum_role_games": 50,
+        "minimum_role_players": 30,
+        "minimum_combat_peer_games": 3
+      },
+      "caveats": [
+        "개인 지표와 비교군은 현재 패치가 확인된 경기만 사용하며, 이전 패치와 패치를 확인할 수 없는 기록은 분석에서 제외합니다.",
+        "운영 스타일은 공식 API의 경기 종료 지표를 바탕으로 한 추정이며 실제 이동·교전 타임라인을 재구성하지 않습니다.",
+        "전투 백분위는 같은 비교군에서 최소 3경기를 보유한 플레이어만 사용합니다.",
+        "상대 점수는 비슷한 MMR대의 백분위 기반 참고 지표이며, 이후 MMR 상승을 예측하는 모델 정확도로 검증된 값은 아닙니다.",
+        "같은 역할군 전체 표본은 확보했지만, 전투 지표별 유효 표본이 부족해 전투 점수를 보류했습니다.",
+        "순위 변동성은 플레이어별 최소 5경기가 확보된 비교 플레이어가 충분할 때만 점수에 포함합니다."
+      ],
+      "dimensions": [
+        {
+          "key": "combat",
+          "score": null,
+          "confidence": "low"
+        },
+        {
+          "key": "growth",
+          "score": 61,
+          "confidence": "high"
+        },
+        {
+          "key": "farming",
+          "score": 51.9,
+          "confidence": "high"
+        },
+        {
+          "key": "team",
+          "score": null,
+          "confidence": "low"
+        },
+        {
+          "key": "vision",
+          "score": 71,
+          "confidence": "high"
+        },
+        {
+          "key": "stability",
+          "score": 66.4,
+          "confidence": "high"
+        }
+      ],
+      "strengths": [
+        {
+          "id": "strength:win_rate",
+          "title": "승률 강점",
+          "detail": "승률 지표가 비교 기준보다 52.8% 높게 관측됩니다.",
+          "metric_ids": [
+            "win_rate"
+          ],
+          "hypothesis": null,
+          "action": null,
+          "review": null
+        },
+        {
+          "id": "strength:view_contribution_per_minute",
+          "title": "분당 시야 기여 점수 강점",
+          "detail": "분당 시야 기여 점수 지표가 비교 기준보다 24.4% 높게 관측됩니다.",
+          "metric_ids": [
+            "view_contribution_per_minute"
+          ],
+          "hypothesis": null,
+          "action": null,
+          "review": null
+        }
+      ],
+      "improvements": [],
+      "metricEvidence": [
+        {
+          "id": "damage_per_minute",
+          "value": 764.21,
+          "reference": null,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "insufficient_peer_history"
+        },
+        {
+          "id": "kill_participation",
+          "value": 0.7119,
+          "reference": null,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "insufficient_peer_history"
+        },
+        {
+          "id": "cc_per_minute",
+          "value": 2.09,
+          "reference": null,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "insufficient_peer_history"
+        },
+        {
+          "id": "weapon_level_per_minute",
+          "value": 0.97,
+          "reference": 0.99,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "available"
+        },
+        {
+          "id": "credits_per_minute",
+          "value": 56.19,
+          "reference": 54.9,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "available"
+        },
+        {
+          "id": "hunts_per_minute",
+          "value": 2.32,
+          "reference": 2.46,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "available"
+        },
+        {
+          "id": "monster_damage_per_minute",
+          "value": 4178.28,
+          "reference": 3781.6,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "available"
+        },
+        {
+          "id": "support_per_minute",
+          "value": 61.99,
+          "reference": null,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "same_pick_required"
+        },
+        {
+          "id": "view_contribution_per_minute",
+          "value": 1.24,
+          "reference": 1,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "available"
+        },
+        {
+          "id": "top3_rate",
+          "value": 0.4762,
+          "reference": 0.3821,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "available"
+        },
+        {
+          "id": "win_rate",
+          "value": 0.1905,
+          "reference": 0.1247,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "available"
+        },
+        {
+          "id": "average_rank",
+          "value": 3.62,
+          "reference": 4.45,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "available"
+        },
+        {
+          "id": "mmr_gain",
+          "value": 29.38,
+          "reference": 19.22,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "available"
+        },
+        {
+          "id": "rank_stability",
+          "value": 1.96,
+          "reference": null,
+          "scope": {
+            "kind": "all_picks",
+            "character_code": null,
+            "weapon_code": null,
+            "patch_key": "12.6.0",
+            "current_patch_games": 21,
+            "supplemental_games": 0,
+            "unknown_patch_games": 0
+          },
+          "player_games": 21,
+          "status": "insufficient_peer_history"
+        }
+      ]
+    }
+  ]
+}

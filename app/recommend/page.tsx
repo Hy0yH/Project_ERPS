@@ -1,6 +1,8 @@
 import { RecommendationForm } from "@/components/RecommendationForm";
+import { SnapshotStatus } from "@/components/SnapshotStatus";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getCharacters } from "@/lib/data";
+export const dynamic = "force-dynamic";
 
 export default async function RecommendPage() {
   const characters = await getCharacters().catch(() => []);
@@ -18,6 +20,7 @@ export default async function RecommendPage() {
       </section>
       <div className="stack">
         <SetupNotice />
+        <SnapshotStatus />
         <RecommendationForm characters={characters} />
       </div>
     </>

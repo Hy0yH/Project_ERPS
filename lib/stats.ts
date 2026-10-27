@@ -146,6 +146,16 @@ export function recommendationScore(input: {
   return baseScore * (1 - evidenceWeight) + contextualScore * evidenceWeight;
 }
 
+export function recommendationBreakdown(input: { metaScore: number; userScore: number; patchScore: number; compScore: number; compConfidence?: number }) {
+  const evidence = clamp01(input.compConfidence ?? 0);
+  return [
+    { key: "meta", label: "현재 패치 메타", score: input.metaScore, weight: 0.55 * (1 - evidence) + 0.25 * evidence },
+    { key: "personal", label: "개인 실험체 사용 성과", score: input.userScore, weight: 0.3 * (1 - evidence) + 0.15 * evidence },
+    { key: "patch", label: "패치 변경 근거", score: input.patchScore, weight: 0.15 * (1 - evidence) + 0.1 * evidence },
+    { key: "composition", label: "실제 조합 성과", score: input.compScore, weight: 0.5 * evidence }
+  ].map((item) => ({ ...item, contribution: item.score * item.weight }));
+}
+
 export function userAffinityScore(characterCode: number, summaries: PlayerCharacterSummary[]) {
   const summary = summaries.find((item) => item.character_code === characterCode);
   if (!summary) return 0;

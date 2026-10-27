@@ -21,6 +21,7 @@ export function SiteNav() {
       <Link className="nav-admin" href="/admin/patch-notes">
         패치 관리
       </Link>
+      <Link className="nav-admin" href="/admin/operations">운영 상태</Link>
     </nav>
   );
 }

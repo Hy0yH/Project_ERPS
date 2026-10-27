@@ -14,10 +14,16 @@ import {
   type CombatScoreProfile
 } from "@/lib/combat-archetypes";
 import { buildPlayerFeedback } from "@/lib/player-feedback";
+import { actualMmrGain, readAnalysisNumber } from "@/lib/player-analysis-source";
+import { buildPlayerStatistics } from "@/lib/player-statistics";
+import { percentileScore, scoreReliability } from "@/lib/player-analysis-score";
+import { evaluatePlayerPicks } from "@/lib/player-pick-evaluation";
+import { matchDetailSource } from "@/lib/match-details";
+export { percentileScore, scoreReliability } from "@/lib/player-analysis-score";
 
 export const PLAYER_ANALYSIS_BASE_VERSION = 1;
 export const PLAYER_ANALYSIS_VERSION = 2;
-export const PLAYER_ANALYSIS_CACHE_VERSION = 15;
+export const PLAYER_ANALYSIS_CACHE_VERSION = 20;
 export const PLAYER_ANALYSIS_GAME_LIMIT = 50;
 export const PLAYER_ANALYSIS_PEER_GAME_LIMIT = 5;
 export const PLAYER_ANALYSIS_CACHE_HOURS = 6;
@@ -48,7 +54,6 @@ type MetricDefinition = {
   minimumPeerGames?: number;
   allowPercentDelta?: boolean;
   referenceStatistic?: "mean" | "median";
-  scoreMethod?: "percentile" | "sampling_distribution";
   ignoreIfBaselineZero?: boolean;
   supplementaryOnly?: boolean;
 };
@@ -64,6 +69,7 @@ type NormalizedGame = {
   win: number;
   playTimeMinutes: number;
   viewContributionAvailable: boolean;
+  availableMetrics: Set<PlayerAnalysisMetricId>;
   metrics: Record<PlayerAnalysisMetricId, number>;
 };
 
@@ -89,16 +95,16 @@ const METRICS: MetricDefinition[] = [
   { id: "damage_per_minute", label: "분당 플레이어 피해", dimension: "combat", unit: "per_minute", direction: "higher", weight: 0.45, actionable: true, minimumPeerGames: PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES },
   { id: "kill_participation", label: "킬 관여율", dimension: "combat", unit: "percent", direction: "higher", weight: 0.35, actionable: true, minimumPeerGames: PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES },
   { id: "cc_per_minute", label: "분당 군중제어", dimension: "combat", unit: "per_minute", direction: "higher", weight: 0.2, actionable: true, minimumPeerGames: PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES },
-  { id: "weapon_level_per_minute", label: "분당 무기 숙련 성장", dimension: "growth", unit: "per_minute", direction: "higher", weight: 0.4, actionable: true },
+  { id: "weapon_level_per_minute", label: "종료 무기 숙련도/활동 분 (참고)", dimension: "growth", unit: "per_minute", direction: "higher", weight: 0.4, actionable: false, supplementaryOnly: true },
   { id: "credits_per_minute", label: "분당 크레딧 획득", dimension: "growth", unit: "per_minute", direction: "higher", weight: 0.6, actionable: true },
   { id: "hunts_per_minute", label: "분당 야생동물 처치", dimension: "farming", unit: "per_minute", direction: "higher", weight: 0.5, actionable: true },
   { id: "monster_damage_per_minute", label: "분당 야생동물 피해", dimension: "farming", unit: "per_minute", direction: "higher", weight: 0.5, actionable: true },
   { id: "support_per_minute", label: "분당 회복·보호", dimension: "team", unit: "per_minute", direction: "higher", weight: 0.2, actionable: false, requiresSamePick: true, referenceStatistic: "mean", ignoreIfBaselineZero: true, supplementaryOnly: true },
   { id: "view_contribution_per_minute", label: "분당 시야 기여 점수", dimension: "vision", unit: "per_minute", direction: "higher", weight: 1, actionable: true },
-  { id: "top3_rate", label: "TOP3 비율", dimension: "stability", unit: "percent", direction: "higher", weight: 0.3, actionable: false, referenceStatistic: "mean", scoreMethod: "sampling_distribution" },
-  { id: "win_rate", label: "승률", dimension: "stability", unit: "percent", direction: "higher", weight: 0.15, actionable: false, referenceStatistic: "mean", scoreMethod: "sampling_distribution" },
-  { id: "average_rank", label: "평균 순위", dimension: "stability", unit: "rank", direction: "lower", weight: 0.25, actionable: false, allowPercentDelta: false, referenceStatistic: "mean", scoreMethod: "sampling_distribution" },
-  { id: "mmr_gain", label: "평균 MMR 증감", dimension: "stability", unit: "mmr", direction: "higher", weight: 0.2, actionable: false, allowPercentDelta: false, referenceStatistic: "mean", scoreMethod: "sampling_distribution" },
+  { id: "top3_rate", label: "TOP3 비율", dimension: "stability", unit: "percent", direction: "higher", weight: 0.3, actionable: false, referenceStatistic: "mean" },
+  { id: "win_rate", label: "승률", dimension: "stability", unit: "percent", direction: "higher", weight: 0.15, actionable: false, referenceStatistic: "mean" },
+  { id: "average_rank", label: "평균 순위", dimension: "stability", unit: "rank", direction: "lower", weight: 0.25, actionable: false, allowPercentDelta: false, referenceStatistic: "mean" },
+  { id: "mmr_gain", label: "평균 실제 RP 증감", dimension: "stability", unit: "mmr", direction: "higher", weight: 0.2, actionable: false, allowPercentDelta: false, referenceStatistic: "mean" },
   { id: "rank_stability", label: "순위 변동성", dimension: "stability", unit: "rank", direction: "lower", weight: 0.1, actionable: false, minimumPeerGames: PLAYER_ANALYSIS_MIN_STABILITY_GAMES, allowPercentDelta: false }
 ];
 
@@ -140,11 +146,26 @@ export function mmrBucketStart(mmr: number, bucketSize = PLAYER_ANALYSIS_MMR_BUC
 }
 
 export function normalizeAnalysisRow(row: AnalysisRow): NormalizedGame {
-  const playTime = numeric(row, "play_time", "playTime", "total_time", "totalTime");
+  const playTime = numeric(row, "play_time", "playTime");
   const kills = numeric(row, "player_kill", "playerKill");
   const assists = numeric(row, "player_assistant", "playerAssistant");
   const teamKills = numeric(row, "team_kill", "teamKill");
   const gameRank = numeric(row, "game_rank", "gameRank");
+  const sourceFields: Partial<Record<PlayerAnalysisMetricId, string[]>> = {
+    damage_per_minute: ["damageToPlayer", "damage_to_player"], cc_per_minute: ["ccTimeToPlayer", "cc_time_to_player"],
+    hunts_per_minute: ["monsterKill", "monster_kill"], monster_damage_per_minute: ["damageToMonster", "damage_to_monster"],
+    weapon_level_per_minute: ["bestWeaponLevel", "best_weapon_level"], credits_per_minute: ["totalGainVFCredit", "total_gain_vf_credit"]
+  };
+  const availableMetrics = new Set<PlayerAnalysisMetricId>(["top3_rate", "win_rate", "average_rank", "rank_stability"]);
+  for (const [id, keys] of Object.entries(sourceFields)) {
+    if (playTime > 0 && readAnalysisNumber(row, ...keys) !== null) availableMetrics.add(id as PlayerAnalysisMetricId);
+  }
+  if (teamKills > 0 && readAnalysisNumber(row, "playerKill", "player_kill") !== null &&
+      readAnalysisNumber(row, "playerAssistant", "player_assistant") !== null) availableMetrics.add("kill_participation");
+  if (playTime > 0 && readAnalysisNumber(row, "teamRecover", "team_recover") !== null &&
+      readAnalysisNumber(row, "protectAbsorb", "protect_absorb") !== null) availableMetrics.add("support_per_minute");
+  if (playTime > 0 && hasViewContribution(row)) availableMetrics.add("view_contribution_per_minute");
+  if (actualMmrGain(row) !== null) availableMetrics.add("mmr_gain");
   return {
     patchKey: analysisRowPatchKey(row),
     startedAt: startedAt(row),
@@ -156,6 +177,7 @@ export function normalizeAnalysisRow(row: AnalysisRow): NormalizedGame {
     win: gameRank === 1 ? 1 : 0,
     playTimeMinutes: playTime > 0 ? playTime / 60 : 0,
     viewContributionAvailable: hasViewContribution(row),
+    availableMetrics,
     metrics: {
       damage_per_minute: perMinute(numeric(row, "damage_to_player", "damageToPlayer"), playTime),
       kill_participation: teamKills > 0 ? clamp((kills + assists) / teamKills, 0, 1) : 0,
@@ -175,7 +197,7 @@ export function normalizeAnalysisRow(row: AnalysisRow): NormalizedGame {
       top3_rate: gameRank > 0 && gameRank <= 3 ? 1 : 0,
       win_rate: gameRank === 1 ? 1 : 0,
       average_rank: gameRank,
-      mmr_gain: numeric(row, "mmr_gain", "mmrGain"),
+      mmr_gain: actualMmrGain(row) ?? 0,
       rank_stability: 0
     }
   };
@@ -199,9 +221,8 @@ export function buildBenchmarkStats(rows: AnalysisRow[]): BenchmarkStats {
       );
       const values = eligibleGroups.map((group) => aggregateNormalizedGames(group)[definition.id]);
       const eligibleGames = eligibleGroups.flat();
-      const top3Values = eligibleGames
-        .filter((game) => game.top3 === 1)
-        .map((game) => game.metrics[definition.id]);
+      const top3Values = eligibleGroups.map((group) => group.filter((game) => game.top3 === 1))
+        .filter((group) => group.length > 0).map((group) => aggregateNormalizedGames(group)[definition.id]);
       const sorted = [...values].sort((a, b) => a - b);
       return [definition.id, {
         mean: mean(values),
@@ -245,7 +266,11 @@ export function buildPlayerAnalysis(input: {
 }): PlayerAnalysis {
   const currentPatchPlayerRows = rowsForPatch(input.playerRows, input.patchKey);
   const excludedGames = (input.excludedGames ?? 0) + input.playerRows.length - currentPatchPlayerRows.length;
-  const normalizedPlayerGames = currentPatchPlayerRows
+  const selectedRows = currentPatchPlayerRows
+    .sort((a, b) => (Date.parse(startedAt(b)) || 0) - (Date.parse(startedAt(a)) || 0))
+    .filter((row) => numeric(row, "game_rank", "gameRank") > 0)
+    .slice(0, PLAYER_ANALYSIS_GAME_LIMIT);
+  const normalizedPlayerGames = selectedRows
     .map(normalizeAnalysisRow)
     .filter((game) => game.gameRank > 0)
     .slice(0, PLAYER_ANALYSIS_GAME_LIMIT);
@@ -326,9 +351,7 @@ export function buildPlayerAnalysis(input: {
       ? Number(definition.referenceStatistic === "mean" ? reference?.mean : reference?.p50)
       : null;
     const rawPercentile = available && reference
-      ? definition.scoreMethod === "sampling_distribution"
-        ? samplingDistributionScore(value, reference, playerGames, definition.direction)
-        : percentileScore(value, reference.values, definition.direction)
+      ? percentileScore(value, reference.values, definition.direction)
       : null;
     const reliability = available && reference
       ? scoreReliability(playerGames, reference.samplePlayers, referenceType === "same_pick")
@@ -390,13 +413,11 @@ export function buildPlayerAnalysis(input: {
   const analysisConfidence = scoredMetrics.length
     ? lowestConfidence([playerConfidence, ...scoredMetrics.map((metric) => metric.confidence)])
     : "low";
-  const picks = buildPickProfile(normalizedPlayerGames, input.characterNames ?? new Map());
-  const feedback = buildPlayerFeedback(metrics, selectImprovementCandidates(metrics, { overall, samePick, role }));
-  const latestGameAt = currentPatchPlayerRows
-    .map(startedAt)
-    .filter(Boolean)
-    .sort()
-    .at(-1) ?? null;
+  const pickProfile = buildPickProfile(normalizedPlayerGames, input.characterNames ?? new Map());
+  const picks = { ...pickProfile, picks: evaluatePlayerPicks(pickProfile.picks, selectedRows, overall) };
+  const feedback = buildPlayerFeedback(metrics.filter((metric) => !metricDefinition(metric.id).supplementaryOnly),
+    selectImprovementCandidates(metrics, { overall, samePick, role }));
+  const latestGameAt = selectedRows.length ? startedAt(selectedRows[0]) || null : null;
   const mmr = input.rank?.mmr ?? latestMmr(currentPatchPlayerRows);
   const bucketStart = mmr ? mmrBucketStart(mmr) : null;
   const caveats = buildCaveats({
@@ -405,6 +426,9 @@ export function buildPlayerAnalysis(input: {
     overallUsable,
     samePickUsable,
     roleUsable,
+    combatCompared: metrics.some((metric) => metricDefinition(metric.id).dimension === "combat" && metric.comparison_status === "available"),
+    combatRoleCompared: metrics.some((metric) => metricDefinition(metric.id).dimension === "combat" &&
+      metric.comparison_status === "available" && metric.reference_type === "role"),
     roleBenchmarkEligible,
     hasCombatClassification: Boolean(combatClassification),
     expanded: input.expandedBenchmark,
@@ -424,6 +448,7 @@ export function buildPlayerAnalysis(input: {
     },
     scope: {
       season_id: input.seasonId,
+      analysis_version: PLAYER_ANALYSIS_CACHE_VERSION,
       patch_key: input.patchKey,
       requested_games: PLAYER_ANALYSIS_GAME_LIMIT,
       analyzed_games: normalizedPlayerGames.length,
@@ -449,6 +474,14 @@ export function buildPlayerAnalysis(input: {
       )?.reference_type ?? null
     } : null,
     dimensions,
+    statistics: buildPlayerStatistics(selectedRows),
+    recent_matches: selectedRows.map((row) => ({
+      game_id: numeric(row, "gameId", "game_id"), started_at: startedAt(row),
+      character_code: numeric(row, "characterNum", "character_code"), weapon_code: numeric(row, "bestWeapon", "best_weapon"),
+      rank: numeric(row, "gameRank", "game_rank"), damage: readAnalysisNumber(row, "damageToPlayer", "damage_to_player"),
+      deaths: readAnalysisNumber(row, "playerDeaths", "player_deaths"), active_seconds: readAnalysisNumber(row, "playTime", "play_time"),
+      mmr_gain: actualMmrGain(row), details: matchDetailSource(row)
+    })),
     strengths: feedback.strengths,
     improvement_priorities: feedback.improvements,
     feedback: feedback.state,
@@ -636,6 +669,8 @@ function buildCaveats(input: {
   overallUsable: boolean;
   samePickUsable: boolean;
   roleUsable: boolean;
+  combatCompared: boolean;
+  combatRoleCompared: boolean;
   roleBenchmarkEligible: boolean;
   hasCombatClassification: boolean;
   expanded: boolean;
@@ -649,14 +684,16 @@ function buildCaveats(input: {
     `전투 백분위는 같은 비교군에서 최소 ${PLAYER_ANALYSIS_MIN_COMBAT_PEER_GAMES}경기를 보유한 플레이어만 사용합니다.`,
     "상대 점수는 비슷한 MMR대의 백분위 기반 참고 지표이며, 이후 MMR 상승을 예측하는 모델 정확도로 검증된 값은 아닙니다."
   ];
-  if (input.games < PLAYER_ANALYSIS_MIN_PLAYER_GAMES) caveats.push(`현재 패치 개인 기록이 ${PLAYER_ANALYSIS_MIN_PLAYER_GAMES}판 미만이라 비교 점수와 점검 제안을 보류합니다.`);
+  if (input.games < PLAYER_ANALYSIS_MIN_PLAYER_GAMES) caveats.push(`현재 패치 개인 기록이 ${PLAYER_ANALYSIS_MIN_PLAYER_GAMES}판 미만이라 플레이스타일 비교 점수와 점검 제안을 보류합니다.`);
   if (input.excludedGames > 0) caveats.push(`이전 패치 또는 패치 미확인 개인 기록 ${input.excludedGames}판을 분석에서 제외했습니다.`);
-  if (!input.samePickUsable && input.roleUsable) caveats.push(
+  if (!input.samePickUsable && input.combatRoleCompared) caveats.push(
     `같은 실험체·무기 표본이 기준에 미달해 전투는 같은 역할군, 나머지 영역은 비슷한 MMR대와 비교했습니다.`
   );
-  if (!input.samePickUsable && input.hasCombatClassification && !input.roleUsable) caveats.push(
+  if (!input.samePickUsable && input.hasCombatClassification && !input.combatCompared) caveats.push(
     input.roleBenchmarkEligible
-      ? `같은 역할군 표본이 ${PLAYER_ANALYSIS_MIN_ROLE_GAMES}경기·${PLAYER_ANALYSIS_MIN_ROLE_PLAYERS}명 기준에 미달해 전투 점수를 보류했습니다.`
+      ? input.roleUsable
+        ? "같은 역할군 전체 표본은 확보했지만, 전투 지표별 유효 표본이 부족해 전투 점수를 보류했습니다."
+        : `같은 역할군 표본이 ${PLAYER_ANALYSIS_MIN_ROLE_GAMES}경기·${PLAYER_ANALYSIS_MIN_ROLE_PLAYERS}명 기준에 미달해 전투 점수를 보류했습니다.`
       : "주력 픽 역할 분류가 검토 대상이라 같은 픽 표본이 부족할 때 전투 점수를 보류합니다."
   );
   if (!input.samePickUsable && !input.hasCombatClassification && input.overallUsable) caveats.push(
@@ -746,42 +783,6 @@ function comparisonNote(status: PlayerAnalysisMetric["comparison_status"]) {
   return notes[status];
 }
 
-export function percentileScore(value: number, sortedValues: number[], direction: "higher" | "lower") {
-  if (!sortedValues.length) return 50;
-  let below = 0;
-  let equal = 0;
-  for (const candidate of sortedValues) {
-    if (candidate < value) below += 1;
-    else if (Math.abs(candidate - value) <= 0.000001) equal += 1;
-  }
-  const percentile = ((below + equal * 0.5) / sortedValues.length) * 100;
-  return round(direction === "higher" ? percentile : 100 - percentile, 1);
-}
-
-export function samplingDistributionScore(
-  value: number,
-  stats: Pick<BenchmarkMetricStats, "mean" | "stddev">,
-  playerGames: number,
-  direction: "higher" | "lower"
-) {
-  const orientation = direction === "higher" ? 1 : -1;
-  if (playerGames <= 0) return 50;
-  const standardError = stats.stddev / Math.sqrt(playerGames);
-  if (standardError <= 0.000001) {
-    if (Math.abs(value - stats.mean) <= 0.000001) return 50;
-    return value * orientation > stats.mean * orientation ? 75 : 25;
-  }
-  const zScore = ((value - stats.mean) / standardError) * orientation;
-  return round(normalCdf(clamp(zScore, -6, 6)) * 100, 1);
-}
-
-export function scoreReliability(playerGames: number, samplePlayers: number, samePick: boolean) {
-  const playerReliability = clamp(playerGames / 20, 0, 1);
-  const cohortTarget = samePick ? 30 : 50;
-  const cohortReliability = clamp(samplePlayers / cohortTarget, 0, 1);
-  return Math.sqrt(playerReliability * cohortReliability);
-}
-
 function confidenceFromEvidence(playerGames: number, samplePlayers: number, samePick: boolean): Confidence {
   const reliability = scoreReliability(playerGames, samplePlayers, samePick);
   if (playerGames >= 20 && reliability >= 0.85) return "high";
@@ -849,43 +850,19 @@ export function analysisRowPatchKey(row: AnalysisRow) {
 }
 
 function numeric(row: AnalysisRow, ...keys: string[]) {
-  for (const key of keys) {
-    if (row[key] !== undefined && row[key] !== null) {
-      const value = Number(row[key]);
-      if (Number.isFinite(value)) return value;
-    }
-  }
-  return 0;
+  return readAnalysisNumber(row, ...keys) ?? 0;
 }
 
 function viewContribution(row: AnalysisRow) {
-  if (row.view_contribution !== undefined || row.viewContribution !== undefined) {
-    return numeric(row, "view_contribution", "viewContribution");
-  }
-  const equipment = row.equipment;
-  if (!equipment || typeof equipment !== "object" || Array.isArray(equipment)) return 0;
-  const analysis = (equipment as AnalysisRow).__analysis;
-  if (!analysis || typeof analysis !== "object" || Array.isArray(analysis)) return 0;
-  return numeric(analysis as AnalysisRow, "viewContribution");
+  return readAnalysisNumber(row, "viewContribution", "view_contribution") ?? 0;
 }
 
 function hasViewContribution(row: AnalysisRow) {
-  if (row.view_contribution !== undefined && row.view_contribution !== null) return true;
-  if (row.viewContribution !== undefined && row.viewContribution !== null) return true;
-  const equipment = row.equipment;
-  if (!equipment || typeof equipment !== "object" || Array.isArray(equipment)) return false;
-  const analysis = (equipment as AnalysisRow).__analysis;
-  return Boolean(
-    analysis &&
-    typeof analysis === "object" &&
-    !Array.isArray(analysis) &&
-    (analysis as AnalysisRow).viewContribution !== undefined &&
-    (analysis as AnalysisRow).viewContribution !== null
-  );
+  return readAnalysisNumber(row, "viewContribution", "view_contribution") !== null;
 }
 
 function metricAvailable(game: NormalizedGame, id: PlayerAnalysisMetricId) {
-  return id !== "view_contribution_per_minute" || game.viewContributionAvailable;
+  return game.availableMetrics.has(id);
 }
 
 function mean(values: number[]) {
@@ -904,15 +881,6 @@ function standardDeviation(values: number[]) {
   if (values.length < 2) return 0;
   const average = mean(values);
   return Math.sqrt(mean(values.map((value) => (value - average) ** 2)));
-}
-
-function normalCdf(value: number) {
-  const sign = value < 0 ? -1 : 1;
-  const x = Math.abs(value) / Math.sqrt(2);
-  const t = 1 / (1 + 0.3275911 * x);
-  const polynomial = (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t;
-  const erf = sign * (1 - polynomial * Math.exp(-x * x));
-  return 0.5 * (1 + erf);
 }
 
 function quantile(sorted: number[], percentile: number) {

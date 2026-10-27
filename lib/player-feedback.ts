@@ -15,10 +15,6 @@ const TASKS: Partial<Record<PlayerAnalysisMetricId, Task>> = {
     hypothesis: "군중제어가 아군 공격으로 이어질 기회를 확인할 필요가 있습니다. 집계 수치로 스킬 적중 장면을 판단할 수는 없습니다.",
     action: "다음 경기에서 핵심 군중제어 사용 한 번씩을 골라, 아군이 이어서 공격할 수 있었는지 확인해 보세요."
   },
-  weapon_level_per_minute: {
-    hypothesis: "숙련 성장에 공백이 생겼는지 확인할 필요가 있습니다. 종료 숙련도와 경기 시간의 비율이므로 특정 시간대의 성장을 뜻하지는 않습니다.",
-    action: "다음 경기에서 성장 활동 없이 이동·대기한 구간을 한 번씩 찾아, 직전에 가능한 사냥이나 팀 활동이 있었는지 직접 메모해 보세요."
-  },
   credits_per_minute: {
     hypothesis: "크레딧 수급 기회를 놓친 구간이 있는지 확인할 필요가 있습니다. 수급 경로별 원인은 집계만으로 구분되지 않습니다.",
     action: "다음 경기에서 이동·대기 구간 한 번씩을 골라, 팀과 함께 할 수 있는 사냥·오브젝트·교전이 있었는지 확인해 보세요."
@@ -37,12 +33,12 @@ const TASKS: Partial<Record<PlayerAnalysisMetricId, Task>> = {
   }
 };
 
-const GROWTH: PlayerAnalysisMetricId[] = ["weapon_level_per_minute", "credits_per_minute"];
+const GROWTH: PlayerAnalysisMetricId[] = ["credits_per_minute"];
 const FARMING: PlayerAnalysisMetricId[] = ["hunts_per_minute", "monster_damage_per_minute"];
 
 export function buildPlayerFeedback(metrics: PlayerAnalysisMetric[], candidates: PlayerAnalysisMetric[]) {
   const strengths = metrics.filter((metric) => metric.id !== "support_per_minute" &&
-    reliable(metric) && Number(metric.relative_score) >= 65)
+    reliable(metric) && Number(metric.relative_score) >= 65 && favorableDifference(metric) > 0)
     .sort((a, b) => Number(b.relative_score) - Number(a.relative_score)).slice(0, 2)
     .map((metric): PlayerAnalysisInsight => ({
       id: `strength:${metric.id}`, title: `${metric.label} 강점`, detail: observation(metric),
@@ -50,7 +46,7 @@ export function buildPlayerFeedback(metrics: PlayerAnalysisMetric[], candidates:
     }));
   const improvements: PlayerAnalysisInsight[] = [];
   const used = new Set<PlayerAnalysisMetricId>();
-  const ordered = candidates.filter((metric) => TASKS[metric.id] && reliable(metric) && Number(metric.relative_score) < 35)
+  const ordered = candidates.filter((metric) => TASKS[metric.id] && reliable(metric) && Number(metric.relative_score) < 35 && favorableDifference(metric) < 0)
     .sort((a, b) => Number(a.relative_score) - Number(b.relative_score));
   for (const anchor of ordered) {
     if (used.has(anchor.id)) continue;
@@ -76,7 +72,7 @@ export function buildPlayerFeedback(metrics: PlayerAnalysisMetric[], candidates:
       id = "combat_participation";
       title = "팀 교전 참여와 공격 기회 확인";
       const normalGrowth = metrics.find((metric) => GROWTH.includes(metric.id) &&
-        reliable(metric) && Number(metric.relative_score) >= 45 && sameScope(anchor, metric));
+        reliable(metric) && Number(metric.relative_score) >= 45 && favorableDifference(metric) >= 0 && sameScope(anchor, metric));
       evidence = [damage, participation, ...(normalGrowth ? [normalGrowth] : [])];
       task = {
         hypothesis: `${normalGrowth ? "성장 지표는 비교 기준과 비슷하거나 높지만, " : ""}피해량과 킬 관여율은 함께 낮습니다. 팀 교전에 참여할 수 있었던 시점과 공격 대상을 점검해 보세요. 합류 지연이 원인이라고 확정할 수는 없습니다.`,
@@ -130,6 +126,11 @@ function reliable(metric: PlayerAnalysisMetric) {
     metric.player_scope.patch_key !== null && metric.player_games >= 10 &&
     metric.player_scope.current_patch_games === metric.player_games &&
     metric.player_scope.supplemental_games === 0 && metric.player_scope.unknown_patch_games === 0;
+}
+
+function favorableDifference(metric: PlayerAnalysisMetric) {
+  return metric.reference_value === null ? 0 :
+    (metric.value - metric.reference_value) * (metric.direction === "higher" ? 1 : -1);
 }
 
 function sameScope(a: PlayerAnalysisMetric, b: PlayerAnalysisMetric) {

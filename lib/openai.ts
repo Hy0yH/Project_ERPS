@@ -32,7 +32,7 @@ export function buildEvidenceExplanation(
   const sentences: string[] = [];
 
   sentences.push(
-    `이번 시즌 상위권 ${formatNumber(metrics.metaGames)}판에서 ${characterName}의 기록은 ` +
+    `현재 패치 상위권 ${formatNumber(metrics.metaGames)}판에서 ${characterName}의 기록은 ` +
       `TOP3 ${formatPercent(metrics.metaTop3Rate)}, 승률 ${formatPercent(metrics.metaWinRate)}, ` +
       `평균 순위 ${metrics.metaAverageRank.toFixed(2)}이며 현재 ${tier}입니다.`
   );
@@ -99,7 +99,7 @@ function playerPerformanceSentence(
     facts.push(`적 제어 ${Number(performance.average_cc_time_to_player).toFixed(1)}초`);
   }
 
-  return `${nickname ? `${nickname} 님의` : "이 플레이어의"} 이번 시즌 ${characterName} 사용 기록은 ` +
+  return `${nickname ? `${nickname} 님의` : "이 플레이어의"} 선택한 범위의 ${characterName} 전체 무기 사용 기록은 ` +
     `${performance.games}판이며, ${facts.join(", ")}입니다.`;
 }
 

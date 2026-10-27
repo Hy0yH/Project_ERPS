@@ -11,6 +11,7 @@ import {
   confidenceFromGames,
   normalizePatchScore,
   recommendationScore,
+  recommendationBreakdown,
   teamCompRankingScore,
   userAffinityScore
 } from "@/lib/stats";
@@ -36,7 +37,9 @@ import type {
   PatchChange,
   TeamCompStat
 } from "@/lib/types";
-import { parseCharacterWeaponKey } from "@/lib/weapons";
+import { parseCharacterWeaponKey, isCharacterWeapon } from "@/lib/weapons";
+
+export class InvalidTeammateError extends Error {}
 
 export class PlayerNotFoundError extends Error {
   readonly code = "PLAYER_NOT_FOUND";
@@ -57,7 +60,6 @@ export class PlayerHistoryUnavailableError extends Error {
 }
 
 export async function buildRecommendations(input: RecommendationInput): Promise<Recommendation[]> {
-  const teammateCodes = [...new Set(input.teammateCharacterCodes ?? [])];
   const limit = Math.max(1, Math.min(input.limit ?? 5, 10));
   const nickname = input.nickname?.trim();
   const playerDataScope = input.playerDataScope ?? "season";
@@ -67,9 +69,15 @@ export async function buildRecommendations(input: RecommendationInput): Promise<
     getCharacterMeta(),
     getTeamComps([]),
     getAllPatchChanges(),
-    nickname ? getPlayerSummary(nickname, "season") : Promise.resolve(null)
+    nickname ? getPlayerSummary(nickname, playerDataScope) : Promise.resolve(null)
   ]);
-  const playerResult = await ensurePlayerSummary(nickname, initialPlayerSummary);
+  if (!metaRows.length) return [];
+  const teammateSpecs = input.teammates?.length ? input.teammates : (input.teammateCharacterCodes ?? []).map((characterCode) => ({ characterCode }));
+  const teammates = await resolveTeammates(teammateSpecs, characters, playerDataScope);
+  const teammateCodes = teammates.map((item) => item.characterCode);
+  const constrainedComps = allComps.filter((comp) => teammates.every((teammate) => !teammate.weaponCode ||
+    comp.character_weapon_keys.includes(`${teammate.characterCode}:${teammate.weaponCode}`)));
+  const playerResult = await ensurePlayerSummary(nickname, initialPlayerSummary, playerDataScope);
   const playerSummary = playerResult.summary;
 
   const playerFavorites = playerSummary?.favorite_characters ?? [];
@@ -94,7 +102,7 @@ export async function buildRecommendations(input: RecommendationInput): Promise<
       const { compContextCodes, comp } = resolveCompContextForCandidate(
         teammateCodes,
         character.character_code,
-        allComps
+        constrainedComps
       );
       const meta = resolveCandidateMeta(metaRows, character.character_code, comp) ??
         metaRows.find((item) => item.character_code === character.character_code);
@@ -117,6 +125,7 @@ export async function buildRecommendations(input: RecommendationInput): Promise<
       return {
         character: recommendedCharacter,
         score,
+        scoreBreakdown: recommendationBreakdown({ compScore, compConfidence: comp?.confidence_score, metaScore, userScore, patchScore }),
         confidence: confidenceFromGames(comp?.games ?? meta?.games ?? 0, comp?.comp_size),
         metrics: {
           metaScore,
@@ -132,7 +141,7 @@ export async function buildRecommendations(input: RecommendationInput): Promise<
           metaTop3Rate: meta?.top3_rate ?? 0,
           metaAverageRank: meta?.average_rank ?? 0
         },
-        context: buildRecommendationContext({
+        context: { ...buildRecommendationContext({
           character: recommendedCharacter,
           characters,
           comp,
@@ -141,7 +150,8 @@ export async function buildRecommendations(input: RecommendationInput): Promise<
           hasSelectedTeammates: teammateCodes.length > 0,
           dataScope: playerDataScope,
           collectionNotice: playerResult.collectionNotice
-        }),
+        }), teammateProfiles: teammates.filter((item) => item.nickname).map((item) => ({ nickname: item.nickname!,
+          characterCode: item.characterCode, weaponCode: item.weaponCode, games: item.games })) },
         explanation: "",
         patchSummary
       } satisfies Recommendation;
@@ -166,24 +176,25 @@ export async function buildRecommendations(input: RecommendationInput): Promise<
 
 async function ensurePlayerSummary(
   nickname: string | undefined,
-  playerSummary: Awaited<ReturnType<typeof getPlayerSummary>>
+  playerSummary: Awaited<ReturnType<typeof getPlayerSummary>>,
+  scope: PlayerDataScope = "season"
 ) {
   if (!nickname) return { summary: null, collectionNotice: undefined };
   if (playerSummary?.favorite_characters?.length && isFreshProfile(playerSummary.collected_at)) {
     return {
       summary: playerSummary,
-      collectionNotice: `${seasonLabel()} 이번 시즌 전체 ${playerSummary.total_games}판의 전투·생존·지원 기록으로 추천을 계산했습니다.`
+      collectionNotice: `${seasonLabel()} ${scope === "current_patch" ? "현재 패치" : "이번 시즌 전체"} ${playerSummary.total_games}판의 전투·생존·지원 기록으로 추천을 계산했습니다.`
     };
   }
   try {
     const collection = await collectPlayerSeasonProfile(
       nickname,
-      "season",
+      scope,
       ER_RECOMMEND_PLAYER_MATCH_LIMIT
     );
-    const refreshedSummary = await getPlayerSummary(nickname, "season");
+    const refreshedSummary = await getPlayerSummary(nickname, scope);
     const collectionNotice = refreshedSummary?.favorite_characters?.length
-      ? `${seasonLabel()} 이번 시즌 랭크 스쿼드 ${collection.inspectedGames}판을 전수 확인해 ${collection.profileCount}개 실험체의 전투·생존·지원 프로필을 갱신했습니다.`
+      ? `${seasonLabel()} ${scope === "current_patch" ? "현재 패치" : "이번 시즌"} 랭크 스쿼드에서 최대 ${ER_RECOMMEND_PLAYER_MATCH_LIMIT}판 범위의 ${collection.inspectedGames}판을 확인해 ${collection.profileCount}개 실험체 프로필을 갱신했습니다.`
       : `${seasonLabel()} 이번 시즌 랭크 스쿼드를 확인했지만 저장 가능한 경기 기록이 없습니다.`;
 
     return { summary: refreshedSummary, collectionNotice };
@@ -195,8 +206,8 @@ async function ensurePlayerSummary(
     return {
       summary: playerSummary,
       collectionNotice: playerSummary?.favorite_characters?.length
-        ? `시즌 전체 상세 기록을 갱신하지 못해 저장된 ${playerSummary.total_games}판으로 계산했습니다. ${error instanceof Error ? error.message : String(error)}`
-        : `닉네임 데이터를 즉시 수집하려 했지만 실패했습니다. ${error instanceof Error ? error.message : String(error)}`
+        ? `상세 기록을 갱신하지 못해 선택한 범위의 저장된 ${playerSummary.total_games}판으로 계산했습니다.`
+        : "닉네임 전적을 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요."
     };
   }
 }
@@ -274,6 +285,9 @@ function buildRecommendationContext(input: {
     `표본 신뢰도는 ${ER_RECOMMEND_MIN_SAMPLE_GAMES}판 미만 낮음, ${ER_RECOMMEND_MIN_SAMPLE_GAMES}판 이상 보통, ${ER_RECOMMEND_HIGH_SAMPLE_GAMES}판 이상 높음으로 판정합니다.`,
     `최종 점수는 조합 성능, 현재 패치 실험체 성능, 플레이어의 실제 사용 성과, 최근 패치 영향을 함께 가중합해 계산했습니다.`
   ].filter(Boolean) as string[];
+  const roles = [input.character.character_code, ...input.compContextCodes].map((code) => input.characters.find((item) => item.character_code === code)?.official_archetype_primary).filter(Boolean);
+  if (roles.length > 1 && new Set(roles).size < roles.length) details.push("공식 역할군이 같은 픽이 포함되어 있습니다. 역할 중복만으로 조합의 유불리를 정하지 않고 실제 조합 표본과 함께 확인해 주세요.");
+  else if (roles.length < input.compContextCodes.length + 1) details.push("공식 역할군 정보가 부족한 픽이 있어 역할 균형에 대한 판단은 보류합니다.");
 
   return {
     source,
@@ -360,7 +374,27 @@ function buildRecommendationCandidates(
     }
   }
 
-  return characters.map((character) => bestMetaByCharacter.get(character.character_code) ?? character);
+  return characters.flatMap((character) => bestMetaByCharacter.has(character.character_code) ? [bestMetaByCharacter.get(character.character_code)!] : []);
+}
+
+async function resolveTeammates(specs: NonNullable<RecommendationInput["teammates"]>, characters: Character[], scope: PlayerDataScope) {
+  const resolved: Array<{ characterCode: number; weaponCode?: number; nickname?: string; games: number }> = [];
+  for (const spec of specs.slice(0, 2)) {
+    const nickname = spec.nickname?.trim();
+    const summary = nickname ? (await ensurePlayerSummary(nickname, await getPlayerSummary(nickname, scope), scope)).summary : null;
+    const favorites = [...(summary?.favorite_characters ?? [])].sort((a, b) => b.games - a.games);
+    const favorite = spec.characterCode ? favorites.find((pick) => pick.character_code === spec.characterCode) :
+      favorites.find((pick) => !resolved.some((item) => item.characterCode === pick.character_code));
+    const characterCode = spec.characterCode ?? favorite?.character_code;
+    if (!characterCode) throw new InvalidTeammateError("팀원 닉네임의 사용 기록이나 선택한 실험체를 확인해 주세요.");
+    const character = characters.find((item) => item.character_code === characterCode);
+    if (!character || resolved.some((item) => item.characterCode === characterCode)) throw new InvalidTeammateError("유효하고 중복되지 않는 팀원 실험체를 선택해 주세요.");
+    if (nickname && !favorite) throw new InvalidTeammateError("선택한 범위에서 팀원의 해당 실험체 사용 기록을 확인하지 못했습니다.");
+    const weaponCode = spec.weaponCode ?? favorite?.weapon_code;
+    if (weaponCode && !isCharacterWeapon(character.weapon_types, weaponCode)) throw new InvalidTeammateError("팀원 실험체가 사용할 수 있는 무기를 선택해 주세요.");
+    resolved.push({ characterCode, weaponCode, nickname, games: favorite?.games ?? 0 });
+  }
+  return resolved;
 }
 
 function getPatchScore(changes: PatchChange[]) {

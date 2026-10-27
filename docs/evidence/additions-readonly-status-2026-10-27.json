@@ -1,0 +1,134 @@
+{
+  "operationsStatus": 503,
+  "operations": {
+    "error": "관리자 인증이 설정되지 않았습니다."
+  },
+  "unknownCharacterStatus": 404,
+  "unknownCharacterPage": true,
+  "unauthorizedStatus": 503,
+  "readonlyService": {
+    "checkedAt": "2026-10-26T20:47:25.650Z",
+    "database": "ready",
+    "patch": "12.6.0",
+    "snapshots": {
+      "characters": "2026-10-26T20:17:01.51+00:00",
+      "compositions": "2026-10-20T13:57:26.497+00:00",
+      "benchmarks": "2026-10-20T13:57:26.497+00:00"
+    },
+    "stale": true,
+    "inconsistent": true,
+    "queue": {
+      "pending": 3286,
+      "processing": 0,
+      "failed": 0
+    },
+    "runs": [
+      {
+        "id": 269,
+        "job": "collect-rankers",
+        "status": "success",
+        "savedMatches": 278,
+        "startedAt": "2026-10-26T19:23:41.382044+00:00",
+        "finishedAt": "2026-10-26T20:11:31.695+00:00",
+        "hasWarnings": false,
+        "diagnostic": null
+      },
+      {
+        "id": 268,
+        "job": "collect-rankers",
+        "status": "success",
+        "savedMatches": 161,
+        "startedAt": "2026-10-26T15:23:47.717091+00:00",
+        "finishedAt": "2026-10-26T16:04:26.493+00:00",
+        "hasWarnings": false,
+        "diagnostic": null
+      },
+      {
+        "id": 267,
+        "job": "collect-rankers",
+        "status": "success",
+        "savedMatches": 187,
+        "startedAt": "2026-10-26T11:23:35.985092+00:00",
+        "finishedAt": "2026-10-26T12:05:22.336+00:00",
+        "hasWarnings": false,
+        "diagnostic": null
+      },
+      {
+        "id": 266,
+        "job": "collect-rankers",
+        "status": "success",
+        "savedMatches": 244,
+        "startedAt": "2026-10-26T08:44:54.085605+00:00",
+        "finishedAt": "2026-10-26T09:30:49.268+00:00",
+        "hasWarnings": false,
+        "diagnostic": null
+      },
+      {
+        "id": 265,
+        "job": "collect-rankers",
+        "status": "running",
+        "savedMatches": 0,
+        "startedAt": "2026-10-26T05:23:32.192988+00:00",
+        "finishedAt": null,
+        "hasWarnings": false,
+        "diagnostic": null
+      },
+      {
+        "id": 264,
+        "job": "collect-rankers",
+        "status": "success",
+        "savedMatches": 647,
+        "startedAt": "2026-10-26T02:55:11.801954+00:00",
+        "finishedAt": "2026-10-26T03:54:10.075+00:00",
+        "hasWarnings": false,
+        "diagnostic": null
+      },
+      {
+        "id": 263,
+        "job": "collect-rankers",
+        "status": "success",
+        "savedMatches": 675,
+        "startedAt": "2026-10-25T12:05:00.809983+00:00",
+        "finishedAt": "2026-10-25T13:05:16.053+00:00",
+        "hasWarnings": true,
+        "diagnostic": null
+      },
+      {
+        "id": 262,
+        "job": "collect-rankers",
+        "status": "success",
+        "savedMatches": 75,
+        "startedAt": "2026-10-24T21:23:33.894687+00:00",
+        "finishedAt": "2026-10-24T22:00:30.911+00:00",
+        "hasWarnings": false,
+        "diagnostic": null
+      },
+      {
+        "id": 261,
+        "job": "collect-rankers",
+        "status": "success",
+        "savedMatches": 182,
+        "startedAt": "2026-10-24T19:23:33.215991+00:00",
+        "finishedAt": "2026-10-24T20:07:16.39+00:00",
+        "hasWarnings": false,
+        "diagnostic": null
+      },
+      {
+        "id": 260,
+        "job": "collect-rankers",
+        "status": "success",
+        "savedMatches": 119,
+        "startedAt": "2026-10-24T17:23:33.7844+00:00",
+        "finishedAt": "2026-10-24T18:00:19.561+00:00",
+        "hasWarnings": false,
+        "diagnostic": null
+      }
+    ]
+  },
+  "credentialConfiguration": {
+    "adminConfigured": true,
+    "adminUsesExample": true,
+    "cronConfigured": true,
+    "cronUsesExample": true
+  }
+}

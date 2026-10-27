@@ -8,11 +8,24 @@ import {
   normalizeAnalysisRow,
   perMinute,
   percentileScore,
-  samplingDistributionScore,
   scoreReliability
 } from "@/lib/player-analysis";
 
 describe("player playstyle analysis", () => {
+  it("selects the latest 50 by actual timestamp when UTC and KST formats are mixed", () => {
+    const row = (id: number, date: string, damage: number) => game({ game_id: id, damage_to_player: damage,
+      matches: { version_season: 12, version_major: 1, version_minor: 0, started_at: date } });
+    const rows = [row(999, "2026-08-18T08:30:00+09:00", 1000000),
+      ...Array.from({ length: 49 }, (_, index) => row(index + 1, "2026-08-18T00:00:00Z", 2000)),
+      row(1001, "2026-08-18T00:30:00Z", 4000)];
+    const analysis = buildPlayerAnalysis({ nickname: "시간순서", userNum: 1, playerRows: rows,
+      overallRows: [], samePickRows: [], seasonId: 41, patchKey: "12.1.0", supplementalGames: 0, expandedBenchmark: false });
+    expect(analysis.scope.latest_game_at).toBe("2026-08-18T00:30:00Z");
+    expect(analysis.recent_matches).toHaveLength(50);
+    expect(analysis.recent_matches[0].game_id).toBe(1001);
+    expect(analysis.recent_matches.some((match) => match.game_id === 999)).toBe(false);
+    expect(analysis.statistics.metrics.find((metric) => metric.id === "damage_dealt")?.value).toBe(2040);
+  });
   it("requires all version parts before treating a row as a known patch", () => {
     expect(analysisRowPatchKey({ versionSeason: 12, versionMajor: 6 })).toBeNull();
     expect(analysisRowPatchKey({ versionSeason: 12 })).toBeNull();
@@ -96,10 +109,32 @@ describe("player playstyle analysis", () => {
     expect(scoreReliability(20, 50, false)).toBe(1);
   });
 
-  it("compares result rates against the sampling distribution for the player's game count", () => {
-    expect(samplingDistributionScore(0.5, { mean: 0.5, stddev: 0.5 }, 30, "higher")).toBe(50);
-    expect(samplingDistributionScore(0.65, { mean: 0.5, stddev: 0.5 }, 30, "higher")).toBeGreaterThan(90);
-    expect(samplingDistributionScore(3.5, { mean: 4.5, stddev: 2 }, 20, "lower")).toBeGreaterThan(95);
+  it("does not convert missing or zero-denominator values into measured zeroes", () => {
+    const peers = Array.from({ length: 90 }, (_, index) => game({ user_num: Math.floor(index / 3) + 1 }));
+    const rows = Array.from({ length: 20 }, (_, index) => game({ user_num: 999, game_id: 30000 + index,
+      team_kill: 0, damage_to_player: null, cc_time_to_player: undefined, play_time: index < 10 ? 1200 : 0 }));
+    const analysis = buildPlayerAnalysis({ nickname: "결측구분", userNum: 999, playerRows: rows, overallRows: peers,
+      samePickRows: peers, seasonId: 41, patchKey: "12.1.0", supplementalGames: 0, expandedBenchmark: false });
+    const metrics = analysis.dimensions.flatMap((dimension) => dimension.metrics);
+    for (const id of ["kill_participation", "damage_per_minute", "cc_per_minute"]) {
+      expect(metrics.find((metric) => metric.id === id)?.player_games).toBe(0);
+      expect(metrics.find((metric) => metric.id === id)?.relative_score).toBeNull();
+    }
+    expect(analysis.statistics.metrics.find((metric) => metric.id === "damage_dealt")?.value).toBeNull();
+  });
+
+  it("uses player-level outcome percentiles without dividing an already aggregated deviation by game count", () => {
+    const peers = Array.from({ length: 90 }, (_, index) => game({ user_num: Math.floor(index / 3) + 1,
+      game_rank: index < 45 ? 2 : 6 }));
+    const rows = Array.from({ length: 20 }, (_, index) => game({ user_num: 999, game_id: 31000 + index, game_rank: 3 }));
+    const analysis = buildPlayerAnalysis({ nickname: "점수과대평가방지", userNum: 999, playerRows: rows, overallRows: peers,
+      samePickRows: peers, seasonId: 41, patchKey: "12.1.0", supplementalGames: 0, expandedBenchmark: false });
+    const metric = analysis.dimensions.flatMap((dimension) => dimension.metrics).find((value) => value.id === "average_rank")!;
+    expect(metric.raw_percentile).toBe(50);
+    expect(metric.relative_score).toBe(50);
+    const growth = analysis.dimensions.find((dimension) => dimension.key === "growth")!;
+    expect(growth.available_metrics).toBe(1);
+    expect(analysis.strengths.every((item) => !item.metric_ids.includes("weapon_level_per_minute"))).toBe(true);
   });
 
   it("prefers same-pick evidence, reverses lower-is-better metrics, and suggests evidence-backed priorities", () => {
@@ -279,6 +314,24 @@ describe("player playstyle analysis", () => {
     expect(analysis.combat_context?.label).toBe("근접 진입형");
     expect(analysis.combat_context?.metric_weights.cc_per_minute).toBe(0.55);
     expect(analysis.benchmark_coverage.role_players).toBe(60);
+    expect(analysis.caveats.some((note) => note.includes("전투는 같은 역할군"))).toBe(true);
+  });
+
+  it("does not claim a role comparison when many role peers have too few games each", () => {
+    const playerRows = Array.from({ length: 21 }, (_, index) => game({ user_num: 999, game_id: 3000 + index,
+      character_code: 4, best_weapon: 13 }));
+    const peers = Array.from({ length: 319 }, (_, index) => game({ user_num: 100 + index % 275,
+      game_id: 4000 + index, character_code: 30, best_weapon: 13 }));
+    const analysis = buildPlayerAnalysis({ nickname: "겜덕후역할표본재현", userNum: 999, playerRows,
+      overallRows: peers, samePickRows: [], roleRows: peers,
+      combatClassification: { rangeProfile: "melee", primaryFunction: "engage", secondaryFunction: null,
+        scoreProfile: "melee_engage", reviewStatus: "auto", confidence: "high", reviewReason: null, classificationVersion: 1 },
+      seasonId: 41, patchKey: "12.1.0", supplementalGames: 0, expandedBenchmark: false });
+    expect(analysis.benchmark_coverage.role_games).toBe(319);
+    expect(analysis.benchmark_coverage.role_players).toBe(275);
+    expect(analysis.dimensions.find((dimension) => dimension.key === "combat")?.score).toBeNull();
+    expect(analysis.caveats.some((note) => note.includes("전투는 같은 역할군"))).toBe(false);
+    expect(analysis.caveats.some((note) => note.includes("전투 지표별 유효 표본이 부족"))).toBe(true);
   });
 
   it("keeps same-pick evidence ahead of the broader role cohort", () => {

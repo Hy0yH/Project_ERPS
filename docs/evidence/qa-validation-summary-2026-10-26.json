@@ -1,0 +1,63 @@
+{
+  "dateKst": "2026-10-26",
+  "scope": "Read-only QA inventory; application source unchanged",
+  "typecheck": { "command": "pnpm typecheck", "exitCode": 0 },
+  "tests": { "command": "pnpm test", "exitCode": 0, "filesPassed": 24, "testsPassed": 163 },
+  "offlineAudit": {
+    "command": "node scripts/audit-player-analysis.mjs --input tests/fixtures/player-analysis-real-cases.json --cohorts none --out .scheduler/qa-offline-audit-2026-10-26.json",
+    "exitCode": 0,
+    "checks": 250,
+    "failures": 0,
+    "uniqueGames": 147,
+    "includesLiveCohortValidation": false
+  },
+  "browser": {
+    "source": "current working tree served by temporary Next.js development server",
+    "listToDetail": {
+      "selectedRankScope": "all",
+      "character": "카티야 / 저격총",
+      "listGames": 6077,
+      "detailHref": "/characters/72?weapon=11",
+      "detailGames": 5603,
+      "detailQueryScopeInSource": "above:mythril"
+    },
+    "recommendation": {
+      "nicknameProvided": false,
+      "teammates": [72, 31],
+      "results": 5,
+      "selectedTeammatesExcludedFromCandidates": true,
+      "duplicateTeammateDisabledInUi": true,
+      "topResult": "타지아 / 암기",
+      "topResultHasDirectCompositionEvidence": false,
+      "topResultConfidenceLabel": "높음",
+      "httpStatus": 200,
+      "serverRequestDurationSeconds": 15.7,
+      "durationIsSingleDevelopmentRequest": true
+    },
+    "mobile": {
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "observedDocumentWidth": 375,
+      "horizontalDocumentOverflowObserved": false,
+      "inspectedViews": ["character detail", "recommendation form", "recommendation result"]
+    },
+    "unknownCharacter": { "path": "/characters/999999", "httpStatus": 200 },
+    "temporaryDevServerStopped": true
+  },
+  "operationalEvidence": {
+    "collectionLogDateKst": "2026-10-26",
+    "collectionCompletedAtKst": "2026-10-26 21:05:22",
+    "savedMatchesInRun": 187,
+    "snapshotFirstFailureAtKst": "2026-10-26 21:08:46",
+    "snapshotRetryFailureAtKst": "2026-10-26 21:12:23",
+    "observedDatabaseErrorCode": "57014",
+    "observedDatabaseErrorMessage": "canceling statement due to statement timeout",
+    "snapshotFailingStatementIndividuallyTraced": false
+  },
+  "notValidated": [
+    "Fresh live player analysis that could write ingestion data and cache",
+    "Production environment credentials, key tier and effective database grants",
+    "Fresh production build: shared production artifacts were preserved",
+    "Comprehensive end-to-end error, keyboard and accessibility scenarios"
+  ]
+}

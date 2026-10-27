@@ -1,4 +1,10 @@
-import { displayPercent, displayRank, getCharacterMeta, getPatchHistory, getTeamComps } from "@/lib/data";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { displayPercent, displayRank, getCharacterMeta, getCharacters, getPatchHistory, getTeamComps } from "@/lib/data";
+import { rankScopeLabel, DEFAULT_RANK_SCOPE } from "@/lib/rank-scopes";
+import { characterBrowseParams, parseCharacterBrowse, type CharacterBrowseQuery } from "@/lib/character-browser";
+import { getCharacterPatchMeta } from "@/lib/meta-history";
+import { PatchMetaHistory } from "@/components/PatchMetaHistory";
 import {
   patchChangeLabel,
   patchChangeSections,
@@ -10,16 +16,20 @@ export default async function CharacterDetailPage({
   searchParams
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ weapon?: string }>;
+  searchParams: Promise<CharacterBrowseQuery>;
 }) {
   const { code } = await params;
-  const { weapon } = await searchParams;
+  const query = parseCharacterBrowse(await searchParams);
+  const rankScope = query.rankScope;
   const characterCode = Number(code);
-  const requestedWeaponCode = Number(weapon);
-  const [meta, comps] = await Promise.all([
-    getCharacterMeta().catch(() => []),
-    getTeamComps([characterCode]).catch(() => [])
+  if (!Number.isSafeInteger(characterCode) || characterCode <= 0) notFound();
+  const requestedWeaponCode = query.weapon;
+  const [meta, comps, characters] = await Promise.all([
+    getCharacterMeta(14, rankScope),
+    getTeamComps([characterCode]),
+    getCharacters()
   ]);
+  if (characters.length && !characters.some((item) => item.character_code === characterCode)) notFound();
   const character = meta.find((item) =>
     item.character_code === characterCode &&
     Number.isFinite(requestedWeaponCode) &&
@@ -27,6 +37,7 @@ export default async function CharacterDetailPage({
     item.weapon_code === requestedWeaponCode
   ) ?? meta.find((item) => item.character_code === characterCode);
   const patches = await getPatchHistory(characterCode, character?.weapon_code).catch(() => []);
+  const trend = character ? await getCharacterPatchMeta(characterCode, character.weapon_code, rankScope).catch(() => null) : [];
   const patchesByVersion = new Map<string, typeof patches>();
   for (const patch of patches) {
     const changes = patchesByVersion.get(patch.patch_version) ?? [];
@@ -40,7 +51,8 @@ export default async function CharacterDetailPage({
         <div className="headline-block">
           <span className="headline-slash" aria-hidden="true" />
           <h1>{character?.display_name ?? `캐릭터 ${characterCode}`}</h1>
-          <p>캐릭터 메타, 함께 좋은 조합, 최근 패치 히스토리입니다.</p>
+          <p>현재 패치 {rankScopeLabel(rankScope)} 기준입니다. 실험체 통계와 선택한 무기를 유지해 표시합니다.</p>
+          <Link href={`/characters?${characterBrowseParams(query)}`}>같은 조건의 티어표로 돌아가기</Link>
         </div>
         {character ? (
           <span className={`badge tier-${character.tier.toLowerCase()}`}>{character.tier}</span>
@@ -73,6 +85,7 @@ export default async function CharacterDetailPage({
       <section className="grid" style={{ marginTop: 18 }}>
         <div className="span-6 stack">
           <h2>좋은 조합</h2>
+          <p className="muted">조합은 {rankScopeLabel(DEFAULT_RANK_SCOPE)} 실험체가 포함된 완성 스쿼드 기준이며 실험체 통계의 랭크 필터와 다를 수 있습니다.</p>
           {comps.slice(0, 10).map((comp) => (
             <div className="item-card split meta-row" key={`${comp.comp_key}:${comp.character_weapon_keys.join("|")}`}>
               <strong className="item-title">
@@ -130,6 +143,7 @@ export default async function CharacterDetailPage({
           {!patches.length ? <div className="empty">등록된 패치 히스토리가 없습니다.</div> : null}
         </div>
       </section>
+      <div style={{ marginTop: 18 }}>{trend === null ? <p role="status">패치별 집계를 불러오지 못했습니다. 현재 통계는 위에서 확인할 수 있습니다.</p> : <PatchMetaHistory points={trend} />}</div>
     </>
   );
 }

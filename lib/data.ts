@@ -1,4 +1,5 @@
 import { DEFAULT_PERIOD_DAYS, ER_SEASON_ID } from "@/lib/env";
+import { createAsyncCache } from "@/lib/async-cache";
 import { getBundledPatchChanges, mergePatchChanges } from "@/lib/bundled-patch-changes";
 import { getActivePatch } from "@/lib/patch-version";
 import { DEFAULT_RANK_SCOPE, parseRankScope, sampleStatus, type RankScope } from "@/lib/rank-scopes";
@@ -23,6 +24,8 @@ import type {
 
 const TEAM_COMP_PAGE_SIZE = 1000;
 const PATCH_CHANGE_PAGE_SIZE = 1000;
+const compCache = createAsyncCache<TeamCompStat[]>(60_000);
+export function invalidateMetaReads() { compCache.clear(); }
 
 export async function getCharacters(): Promise<Character[]> {
   if (!isSupabaseConfigured()) return [];
@@ -108,6 +111,8 @@ export async function getTeamComps(
   if (!latestSnapshot) return [];
 
   const normalizedCodes = [...new Set(characterCodes)].sort((a, b) => a - b);
+  const cacheKey = `${periodDays}:${rankScope}:${latestSnapshot.period_start}:${latestSnapshot.period_end}:${normalizedCodes.join(",")}`;
+  return compCache.get(cacheKey, async () => {
   const data = await fetchTeamCompRows(
     supabase,
     normalizedCodes,
@@ -126,6 +131,7 @@ export async function getTeamComps(
     if (!latestByComp.has(comp.comp_key)) latestByComp.set(comp.comp_key, comp);
   }
   return assignRelativeTiers([...latestByComp.values()].sort(compareTeamComps));
+  });
 }
 
 export async function getTeamCompCount(
@@ -142,15 +148,10 @@ export async function getTeamCompCount(
     rankScope
   );
   if (!latestSnapshot) return 0;
-  const data = await fetchTeamCompRows(
-    supabase,
-    [],
-    periodDays,
-    "comp_key",
-    latestSnapshot.period_start,
-    rankScope
-  );
-  return new Set((data ?? []).map((row) => row.comp_key)).size;
+  const { count, error } = await supabase.from("team_comp_stats").select("comp_key", { count: "exact", head: true })
+    .eq("period_days", periodDays).eq("rank_scope", rankScope).eq("period_start", latestSnapshot.period_start);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function getSnapshotSummary(
@@ -491,6 +492,7 @@ async function fetchTeamCompRows(
       .eq("period_days", periodDays)
       .eq("rank_scope", rankScope)
       .order("period_end", { ascending: false })
+      .order("comp_key", { ascending: true })
       .range(from, to);
 
     if (periodStart) {

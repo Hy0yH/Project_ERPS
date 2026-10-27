@@ -1,3 +1,6 @@
+import { sourceMetrics, spentCredits } from "@/lib/player-analysis-source";
+import { matchDetailSource } from "@/lib/match-details";
+import { runSnapshotBuild, writeSnapshotBatches, type SnapshotProgress } from "@/lib/snapshot-build";
 import {
   ER_ANALYSIS_PEER_GAME_LIMIT,
   ER_ANALYSIS_PLAYER_MATCH_LIMIT,
@@ -1141,12 +1144,12 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
     mmr_gain: Number(player.mmrGain ?? 0),
     mmr_after: Number(player.mmrAfter ?? 0),
     best_weapon: Number(player.bestWeapon ?? 0),
-    equipment: equipmentWithAnalysisMetrics(player.equipment, player.viewContribution),
+    equipment: equipmentWithAnalysisMetrics(player.equipment, player),
     character_level: Number(player.characterLevel ?? 0),
     player_deaths: Number(player.playerDeaths ?? 0),
     monster_kill: Number(player.monsterKill ?? 0),
     best_weapon_level: Number(player.bestWeaponLevel ?? 0),
-    play_time: Number(player.playTime ?? player.totalTime ?? 0),
+    play_time: Number(player.playTime ?? 0),
     team_kill: Number(player.teamKill ?? 0),
     damage_to_player: Number(player.damageToPlayer ?? 0),
     damage_from_player: Number(player.damageFromPlayer ?? 0),
@@ -1164,7 +1167,7 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
     total_gain_vf_credit: Number(
       player.totalGainVFCredit ?? sumNumericArray(player.totalVFCredit)
     ),
-    total_spent_vf_credit: sumNumericArray(player.usedVFCredit),
+    total_spent_vf_credit: spentCredits(player) ?? 0,
     route_id_of_start: Number(player.routeIdOfStart ?? 0),
     place_of_start: Number(player.placeOfStart ?? 0),
     analysis_data_version: player.viewContribution !== undefined && player.playTime !== undefined
@@ -1193,7 +1196,7 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
   if (playersError) throw playersError;
 }
 
-function equipmentWithAnalysisMetrics(equipment: unknown, viewContribution: unknown) {
+export function equipmentWithAnalysisMetrics(equipment: unknown, player: Record<string, unknown>) {
   const base = equipment && typeof equipment === "object" && !Array.isArray(equipment)
     ? equipment as Record<string, unknown>
     : { items: equipment ?? {} };
@@ -1204,18 +1207,28 @@ function equipmentWithAnalysisMetrics(equipment: unknown, viewContribution: unkn
     ...base,
     __analysis: {
       ...previousAnalysis,
-      viewContribution: Number(viewContribution ?? 0)
+      viewContribution: player.viewContribution === undefined || player.viewContribution === null ? null : Number(player.viewContribution),
+      raw: sourceMetrics(player),
+      details: matchDetailSource(player)
     }
   };
 }
 
 export async function buildSnapshots(periodDays = 14) {
+  if (![7, 14, 30].includes(periodDays)) throw new Error("지원하지 않는 집계 기간입니다.");
+  return runSnapshotBuild((progress) => buildSnapshotData(periodDays, progress));
+}
+
+async function buildSnapshotData(periodDays: number, progress: SnapshotProgress) {
   const supabase = getSupabaseAdmin();
+  progress("read_patch");
   const latestPatch = await getActivePatch(supabase);
   const since =
     latestPatch?.patch_start_at ||
     new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString();
+  progress("read_players");
   const players = await fetchSnapshotPlayers(supabase, since, latestPatch);
+  progress("calculate", players.length);
   if (!players.length) {
     return {
       characters: 0,
@@ -1265,12 +1278,8 @@ export async function buildSnapshots(periodDays = 14) {
   const tierFilter = latestPatch ? `current_patch:${latestPatch.patch_key}` : "rolling_period";
 
   if (characterRows.length) {
-    const { error: characterError } = await supabase
-      .from("character_stats_snapshot")
-      .upsert(characterRows, {
-        onConflict: "character_code,weapon_code,period_days,period_start,rank_scope"
-      });
-    if (characterError) throw characterError;
+    await writeSnapshotBatches(supabase, "character_stats_snapshot", characterRows,
+      "character_code,weapon_code,period_days,period_start,rank_scope", progress);
   }
 
   const compRows = buildCompRows(
@@ -1281,22 +1290,14 @@ export async function buildSnapshots(periodDays = 14) {
     DEFAULT_RANK_SCOPE
   );
   if (compRows.length) {
-    const { error: compError } = await supabase.from("team_comp_stats").upsert(compRows, {
-      onConflict: "comp_key,period_days,period_start,rank_scope"
-    });
-    if (compError) throw compError;
+    await writeSnapshotBatches(supabase, "team_comp_stats", compRows,
+      "comp_key,period_days,period_start,rank_scope", progress);
   }
   const benchmarkRows = latestPatch
     ? buildMetricBenchmarkRows(players, latestPatch, since, periodEnd)
     : [];
-  for (let index = 0; index < benchmarkRows.length; index += 500) {
-    const { error: benchmarkError } = await supabase
-      .from("player_metric_benchmarks")
-      .upsert(benchmarkRows.slice(index, index + 500), {
-        onConflict: "patch_key,mmr_bucket,segment_key,period_start"
-      });
-    if (benchmarkError) throw benchmarkError;
-  }
+  await writeSnapshotBatches(supabase, "player_metric_benchmarks", benchmarkRows,
+    "patch_key,mmr_bucket,segment_key,period_start", progress);
   return {
     characters: characterRows.length,
     comps: compRows.length,

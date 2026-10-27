@@ -5,6 +5,7 @@ import type {
   CombatRangeProfile,
   CombatScoreProfile
 } from "@/lib/combat-archetypes";
+import type { PlayerMatchDetails } from "@/lib/match-details";
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -129,6 +130,7 @@ export type RecommendationInput = {
   teammateCharacterCodes?: number[];
   playerDataScope?: PlayerDataScope;
   limit?: number;
+  teammates?: Array<{ nickname?: string; characterCode?: number; weaponCode?: number }>;
 };
 
 export type Recommendation = {
@@ -152,6 +154,7 @@ export type Recommendation = {
   context: RecommendationContext;
   explanation: string;
   patchSummary: string[];
+  scoreBreakdown?: Array<{ key: string; label: string; score: number; weight: number; contribution: number }>;
 };
 
 export type RecommendationContext = {
@@ -167,6 +170,7 @@ export type RecommendationContext = {
   compAverageRank?: number;
   collectionNotice?: string;
   details: string[];
+  teammateProfiles?: Array<{ nickname: string; characterCode: number; weaponCode?: number; games: number }>;
 };
 
 export type RecommendationContextCharacter = {
@@ -270,6 +274,33 @@ export type PlayerAnalysisDimension = {
   metrics: PlayerAnalysisMetric[];
 };
 
+export type PlayerPickGrade = "S" | "A+" | "A" | "B+" | "B" | "C+" | "C" | "D+" | "D" | "F+" | "F";
+
+export type PlayerPickEvaluation = {
+  grade: PlayerPickGrade | null;
+  score: number | null;
+  status: "rated" | "provisional" | "insufficient_player_games" | "insufficient_benchmark";
+  confidence: Confidence;
+  reason: string;
+  basis: "mmr_results" | "match_results";
+  metrics: Array<{
+    id: "average_rank" | "top3_rate" | "win_rate";
+    label: string;
+    weight: number;
+    value: number;
+    reference_mean: number | null;
+    percentile: number | null;
+    adjusted_score: number | null;
+    sample_games: number;
+    sample_players: number;
+  }>;
+  details: {
+    damage_per_minute: number | null;
+    deaths_per_game: number | null;
+    mmr_gain_per_game: number | null;
+  };
+};
+
 export type PlayerAnalysisPick = {
   character_code: number;
   character_name: string;
@@ -280,6 +311,7 @@ export type PlayerAnalysisPick = {
   win_rate: number;
   top3_rate: number;
   average_rank: number;
+  evaluation: PlayerPickEvaluation;
 };
 
 export type PlayerAnalysisInsight = {
@@ -291,6 +323,19 @@ export type PlayerAnalysisInsight = {
   action: string | null;
   review: string | null;
   coaching_note?: string;
+};
+
+export type PlayerAnalysisStatistics = {
+  games: number;
+  metrics: Array<{
+    id: string;
+    label: string;
+    group: PlayerAnalysisDimensionKey;
+    unit: "count" | "minutes" | "seconds" | "mmr" | "percent" | "rank";
+    value: number | null;
+    total: number | null;
+    sample_games: number;
+  }>;
 };
 
 export type PlayerAnalysis = {
@@ -311,12 +356,16 @@ export type PlayerAnalysis = {
     excluded_games: number;
     latest_game_at: string | null;
     confidence: Confidence;
+    selected_pick_key?: string;
+    available_games?: number;
+    analysis_version?: number;
   };
   pick_profile: {
     concentration: number;
     unique_picks: number;
     picks: PlayerAnalysisPick[];
   };
+  available_picks?: Array<{ character_code: number; character_name: string; weapon_code: number; weapon_name: string; games: number }>;
   combat_context: {
     score_profile: CombatScoreProfile;
     label: string;
@@ -331,6 +380,19 @@ export type PlayerAnalysis = {
     reference_type: "same_pick" | "role" | "mmr" | null;
   } | null;
   dimensions: PlayerAnalysisDimension[];
+  statistics: PlayerAnalysisStatistics;
+  recent_matches: Array<{
+    game_id: number;
+    started_at: string;
+    character_code: number;
+    weapon_code: number;
+    rank: number;
+    damage: number | null;
+    deaths: number | null;
+    active_seconds: number | null;
+    mmr_gain: number | null;
+    details?: PlayerMatchDetails;
+  }>;
   strengths: PlayerAnalysisInsight[];
   improvement_priorities: PlayerAnalysisInsight[];
   feedback: {

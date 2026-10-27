@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { readAnalysisStream } from "@/lib/analysis-stream";
+import type { AnalysisProgress } from "@/lib/analysis-jobs";
+import { PlayerAnalysisTools } from "@/components/PlayerAnalysisTools";
+import { PlayerStatisticsHighlights, PlayerStatisticsPanel } from "@/components/PlayerStatisticsPanel";
+import { PlayerPickRatings } from "@/components/PlayerPickRatings";
 import type {
   PlayerAnalysis,
   PlayerAnalysisMetric
@@ -10,37 +15,60 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
   const [analysis, setAnalysis] = useState<PlayerAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pickKey, setPickKey] = useState("all");
+  const [progress, setProgress] = useState<AnalysisProgress | null>(null);
+  const requestRef = useRef<AbortController | null>(null), sequence = useRef(0);
 
-  const load = useCallback(async (forceRefresh = false) => {
+  const load = useCallback(async (forceRefresh = false, selection = "all") => {
+    requestRef.current?.abort();
+    const controller = new AbortController(), requestId = ++sequence.current;
+    requestRef.current = controller;
     setLoading(true);
     setError("");
+    setProgress(null);
+    const parts = selection.split(":").map(Number);
     try {
-      const response = await fetch(`/api/player/${encodeURIComponent(nickname)}/analysis`, {
+      const response = await fetch(`/api/player/${encodeURIComponent(nickname)}/analysis?stream=1`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ forceRefresh })
+        signal: controller.signal,
+        body: JSON.stringify({ forceRefresh, ...(selection === "all" ? {} : { pick: { characterCode: parts[0], weaponCode: parts[1] } }) })
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "분석 데이터를 불러오지 못했습니다.");
-      setAnalysis(payload.data as PlayerAnalysis);
+      const result = await readAnalysisStream(response, (value) => { if (requestId === sequence.current) setProgress(value); });
+      if (requestId === sequence.current) setAnalysis(result);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "분석 데이터를 불러오지 못했습니다.");
+      if (!controller.signal.aborted && requestId === sequence.current) setError(caught instanceof Error ? caught.message : "분석 데이터를 불러오지 못했습니다.");
     } finally {
-      setLoading(false);
+      if (requestId === sequence.current) setLoading(false);
     }
   }, [nickname]);
 
   useEffect(() => {
-    void load(false);
+    const selected = new URL(location.href).searchParams.get("pick") ?? "all";
+    const safePick = /^\d+:\d+$/.test(selected) ? selected : "all";
+    setAnalysis(null); setPickKey(safePick); void load(false, safePick);
+    return () => { sequence.current += 1; requestRef.current?.abort(); };
   }, [load]);
+
+  async function checkJob() {
+    if (!progress) return;
+    try {
+      const response = await fetch(`/api/player/${encodeURIComponent(nickname)}/analysis?jobId=${encodeURIComponent(progress.jobId)}`, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "작업 상태를 확인하지 못했습니다.");
+      if (result.stage === "complete" && result.data) { setAnalysis(result.data); setError(""); }
+      else setError(result.stage === "failed" ? "분석 작업이 실패했습니다. 다시 시도해 주세요." : analysisStageLabel(result.stage));
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "작업 상태를 확인하지 못했습니다."); }
+  }
 
   if (loading && !analysis) {
     return (
       <section className="analysis-loading panel" aria-live="polite">
         <span className="analysis-spinner" aria-hidden="true" />
         <div>
-          <strong>최근 경기와 비교 표본을 분석하고 있습니다.</strong>
+          <strong>{analysisStageLabel(progress?.stage)}</strong>
           <p>첫 조회에서는 최신 경기 참가자 데이터를 보강하므로 잠시 걸릴 수 있습니다.</p>
+          {progress ? <small>작업 {progress.jobId.slice(0, 8)} · 실제 진행 단계에 따라 안내합니다.</small> : null}
         </div>
       </section>
     );
@@ -51,7 +79,9 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
       <section className="analysis-error empty" role="alert">
         <strong>분석을 완료하지 못했습니다.</strong>
         <p>{error}</p>
-        <button type="button" onClick={() => void load(false)}>다시 시도</button>
+        <button type="button" onClick={() => void load(false, pickKey)}>다시 시도</button>
+        {progress ? <button type="button" className="secondary" onClick={() => void checkJob()}>작업 상태 확인</button> : null}
+        {pickKey !== "all" ? <button type="button" className="secondary" onClick={() => { setPickKey("all"); void load(false, "all"); }}>전체 기록으로 돌아가기</button> : null}
       </section>
     );
   }
@@ -66,6 +96,13 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
 
   return (
     <div className="player-analysis stack">
+      <div className="panel browse-controls"><label>분석할 실험체·무기<select value={pickKey} disabled={loading} onChange={(event) => {
+        const value = event.target.value; setPickKey(value); setAnalysis(null);
+        const url = new URL(location.href); if (value === "all") url.searchParams.delete("pick"); else url.searchParams.set("pick", value);
+        history.replaceState(null, "", url); void load(false, value);
+      }}><option value="all">현재 패치의 최근 전체 픽</option>{(analysis.available_picks ?? analysis.pick_profile.picks).map((pick) =>
+        <option value={`${pick.character_code}:${pick.weapon_code}`} key={`${pick.character_code}:${pick.weapon_code}`}>{pick.character_name} · {pick.weapon_name} · {pick.games}판</option>)}</select></label>
+        <p className="muted">최근 최대 {analysis.scope.available_games ?? analysis.scope.analyzed_games}판 안에서 범위를 선택합니다. 표본이 부족하면 비교 판단을 보류합니다.</p></div>
       <section className="analysis-summary panel">
         <div className="analysis-summary-copy">
           <div className="analysis-badges">
@@ -90,7 +127,7 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
           className="secondary analysis-refresh"
           type="button"
           disabled={loading}
-          onClick={() => void load(true)}
+          onClick={() => void load(true, pickKey)}
         >
           {loading ? "갱신 중…" : "최신 전적으로 새로고침"}
         </button>
@@ -105,35 +142,13 @@ export function PlayerAnalysisPanel({ nickname }: { nickname: string }) {
         <OverviewMetric label="주력 픽 집중도" value={formatPercent(analysis.pick_profile.concentration)} />
       </section>
 
+      <PlayerStatisticsHighlights statistics={analysis.statistics} />
+      <PlayerPickRatings analysis={analysis} />
+      <PlayerStatisticsPanel analysis={analysis} />
       <PlayerFeedbackPanels analysis={analysis} />
+      <PlayerAnalysisTools key={`${analysis.generated_at}:${analysis.scope.selected_pick_key}`} analysis={analysis} />
 
       <PlaystyleMap axes={radarAxes} />
-
-      <section className="analysis-section">
-        <div className="analysis-section-head">
-          <div>
-            <span className="page-kicker">PICK PROFILE</span>
-            <h2>주력 실험체와 무기</h2>
-          </div>
-          <span className="muted">총 {analysis.pick_profile.unique_picks}개 픽</span>
-        </div>
-        <div className="analysis-pick-grid">
-          {analysis.pick_profile.picks.slice(0, 6).map((pick, index) => (
-            <article className="analysis-pick-card" key={`${pick.character_code}:${pick.weapon_code}`}>
-              <span className="analysis-pick-rank">{String(index + 1).padStart(2, "0")}</span>
-              <div>
-                <strong>{pick.character_name} · {pick.weapon_name}</strong>
-                <span>{pick.games}판 · 픽률 {formatPercent(pick.pick_rate)}</span>
-              </div>
-              <dl>
-                <div><dt>TOP3</dt><dd>{formatPercent(pick.top3_rate)}</dd></div>
-                <div><dt>승률</dt><dd>{formatPercent(pick.win_rate)}</dd></div>
-                <div><dt>평균 순위</dt><dd>{pick.average_rank.toFixed(2)}</dd></div>
-              </dl>
-            </article>
-          ))}
-        </div>
-      </section>
 
       <section className="analysis-section">
         <div className="analysis-section-head">
@@ -225,7 +240,7 @@ export function PlayerFeedbackPanels({ analysis }: { analysis: PlayerAnalysis })
       <InsightGroup
         kicker="STRENGTHS"
         title="확인된 강점"
-        empty="현재 비교 가능한 기록에서 충분한 신뢰도로 확인된 65점 이상의 강점 지표가 아직 없습니다."
+        empty="현재 비교 가능한 기록에서 비교 기준보다 유리하면서 충분한 신뢰도를 갖춘 강점 지표가 아직 없습니다."
         items={analysis.strengths}
         analysis={analysis}
         tone="positive"
@@ -458,7 +473,7 @@ function SupportActivityCard({
       </div>
       <div className="analysis-support-value">
         <span>분당 회복·보호</span>
-        <strong>{formatMetric(metric.value, metric.unit)}</strong>
+        <strong>{metric.player_games ? formatMetric(metric.value, metric.unit) : "미수집"}</strong>
       </div>
       <div className="analysis-support-reference">
         {comparisonAvailable ? (
@@ -546,7 +561,7 @@ function MetricRow({ metric }: { metric: PlayerAnalysisMetric }) {
       <div>
         <strong>{metric.label}</strong>
         <span>
-          내 수치 {formatMetric(metric.value, metric.unit)}
+          {metric.player_games ? `비교에 사용한 내 수치 ${formatMetric(metric.value, metric.unit)}` : "수집된 값 없음"}
           {metric.comparison_status === "available" && metric.reference_value !== null
             ? ` · ${referenceLabel} ${formatMetric(metric.reference_value, metric.unit)} · 개인 ${metric.player_games}판 / 비교 ${metric.sample_players}명`
             : ` · ${metric.comparison_note ?? "비교 기준을 충족하지 못했습니다."}`}
@@ -671,6 +686,11 @@ function formatMetric(value: number, unit: PlayerAnalysisMetric["unit"]) {
 
 function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
+}
+
+function analysisStageLabel(stage?: AnalysisProgress["stage"]) {
+  return stage === "collect" ? "최근 경기 기록을 확인하고 있습니다." : stage === "benchmark" ? "같은 패치의 비교 표본을 확인하고 있습니다." :
+    stage === "calculate" ? "실제 지표와 선택한 픽을 계산하고 있습니다." : stage === "explain" ? "분석 근거와 설명을 정리하고 있습니다." : "저장된 분석과 현재 범위를 확인하고 있습니다.";
 }
 
 function confidenceLabel(confidence: PlayerAnalysis["scope"]["confidence"]) {

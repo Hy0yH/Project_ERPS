@@ -1,0 +1,95 @@
+{
+  "executedAt": "2026-10-26T13:26:01.154Z",
+  "mode": "read-only metadata queries",
+  "configured": {
+    "ETERNAL_RETURN_API_KEY": true,
+    "OPENAI_API_KEY": false,
+    "NEXT_PUBLIC_SUPABASE_URL": true,
+    "SUPABASE_SERVICE_ROLE_KEY": true,
+    "ADMIN_TOKEN": true,
+    "CRON_SECRET": true
+  },
+  "database": [
+    {
+      "label": "character_snapshot",
+      "rows": [
+        {
+          "period_start": "2026-10-15T02:00:00+00:00",
+          "period_end": "2026-10-26T12:10:39.041+00:00",
+          "season_id": 41,
+          "tier_filter": "current_patch:12.6.0",
+          "rank_scope": "above:mythril",
+          "period_days": 14
+        }
+      ],
+      "error": null
+    },
+    {
+      "label": "composition_snapshot",
+      "rows": [
+        {
+          "period_start": "2026-10-15T02:00:00+00:00",
+          "period_end": "2026-10-20T13:57:26.497+00:00",
+          "rank_scope": "above:mythril",
+          "period_days": 14
+        }
+      ],
+      "error": null
+    },
+    {
+      "label": "archetype_schema",
+      "rows": [
+        {
+          "official_archetype_primary": "Warrior"
+        }
+      ],
+      "error": null
+    }
+  ],
+  "existingCapture": {
+    "file": ".scheduler/player-analysis-raw.json",
+    "rows": 300,
+    "fields": {
+      "mmrBefore": {
+        "present": 269,
+        "nonZeroNumber": 269
+      },
+      "mmrAfter": {
+        "present": 269,
+        "nonZeroNumber": 268
+      },
+      "mmrGain": {
+        "present": 269,
+        "nonZeroNumber": 262
+      },
+      "mmrGainGambit": {
+        "present": 289,
+        "nonZeroNumber": 275
+      },
+      "equipment": {
+        "present": 300,
+        "nonZeroNumber": 0
+      },
+      "skillOrderInfo": {
+        "present": 300,
+        "nonZeroNumber": 0
+      },
+      "routeIdOfStart": {
+        "present": 300,
+        "nonZeroNumber": 286
+      },
+      "placeOfStart": {
+        "present": 300,
+        "nonZeroNumber": 0
+      },
+      "totalVFCredit": {
+        "present": 0,
+        "nonZeroNumber": 0
+      },
+      "usedVFCredit": {
+        "present": 0,
+        "nonZeroNumber": 0
+      }
+    }
+  }
+}

@@ -20,6 +20,7 @@ describe("actionable player feedback", () => {
     const damage = metric("damage_per_minute", 20);
     const participation = metric("kill_participation", 25);
     const growth = metric("credits_per_minute", 55);
+    growth.value = 100;
     const result = buildPlayerFeedback([damage, participation, growth], [damage, participation]);
     expect(result.improvements).toHaveLength(1);
     expect(result.improvements[0].id).toBe("improvement:combat_participation");
@@ -54,17 +55,19 @@ describe("actionable player feedback", () => {
     expect(result.improvements.every((item) => item.metric_ids.length === 1)).toBe(true);
   });
 
-  it("keeps a separate growth task when a normal growth metric only provides combat context", () => {
+  it("keeps a separate farming task and never coaches on ending weapon level divided by time", () => {
     const participation = metric("kill_participation", 10);
     const damage = metric("damage_per_minute", 20);
     const weapon = metric("weapon_level_per_minute", 25);
     const farming = metric("hunts_per_minute", 30);
     const credits = metric("credits_per_minute", 50);
+    credits.value = 100;
     const result = buildPlayerFeedback([participation, damage, weapon, farming, credits], [participation, damage, weapon, farming]);
     expect(result.improvements.map((item) => item.id)).toEqual([
-      "improvement:combat_participation", "improvement:growth_continuity"
+      "improvement:combat_participation", "improvement:hunts_per_minute"
     ]);
-    expect(result.improvements[1].metric_ids).toEqual([weapon.id, farming.id]);
+    expect(result.improvements[1].metric_ids).toEqual([farming.id]);
+    expect(result.improvements.every((item) => !item.metric_ids.includes(weapon.id))).toBe(true);
   });
 
   it("distinguishes insufficient samples, a lack of action evidence, and no clear weakness", () => {
@@ -83,5 +86,14 @@ describe("actionable player feedback", () => {
     const result = buildPlayerFeedback([support, low], [support, low]);
     expect(result.strengths).toEqual([]);
     expect(result.improvements).toEqual([]);
+  });
+
+  it("requires the observed comparison and percentile to agree before declaring a strength or task", () => {
+    const skewedWinRate = { ...metric("win_rate", 80), value: 0.06, reference_value: 0.15 };
+    expect(buildPlayerFeedback([skewedWinRate], []).strengths).toEqual([]);
+    const aboveMean = { ...metric("damage_per_minute", 20), value: 120 };
+    expect(buildPlayerFeedback([aboveMean], [aboveMean]).improvements).toEqual([]);
+    const lowerIsBetter = { ...metric("average_rank", 80), direction: "lower" as const, value: 3, reference_value: 4 };
+    expect(buildPlayerFeedback([lowerIsBetter], []).strengths).toHaveLength(1);
   });
 });
