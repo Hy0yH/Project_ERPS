@@ -1,0 +1,68 @@
+{
+  "dateKST": "2026-10-28",
+  "verifiedAtKST": "2026-10-28 01:04",
+  "repository": "Hy0yH/Project_ERPS",
+  "codeCommit": "1679a5df6a8d97b269c2949b0f39666ce152e0ff",
+  "pushOrder": ["Test", "main"],
+  "bothRemoteHeadsMatchedCodeCommitAfterPush": true,
+  "includedExistingTestCommit": "67ff030fa3d5ca434815d4df88d39ba3a9ed329c",
+  "verificationBeforePush": {
+    "typecheckExitCode": 0,
+    "testFiles": 34,
+    "testsPassed": 218,
+    "testsFailed": 0,
+    "productionBuildExitCode": 0,
+    "distDir": ".next-qa",
+    "homepagePrerendered": true,
+    "homepageRevalidateSeconds": 60
+  },
+  "productionDeployment": {
+    "id": "dpl_7YR7Szfo45RteZjTVkE84qt75m58",
+    "url": "https://project-erps-i9nlz9pnr-erps1.vercel.app",
+    "source": "git",
+    "branch": "main",
+    "target": "production",
+    "state": "READY",
+    "productionAlias": "https://project-erps.vercel.app/",
+    "aliasConfirmed": true
+  },
+  "productionGetRequests": [
+    {
+      "sample": "first-checked-after-deployment",
+      "httpStatus": 200,
+      "firstByteSeconds": 0.894250,
+      "totalSeconds": 0.896666,
+      "bytes": 26055,
+      "vercelCache": "PRERENDER",
+      "ageSeconds": 0
+    },
+    {
+      "sample": "repeat",
+      "httpStatus": 200,
+      "firstByteSeconds": 0.487288,
+      "totalSeconds": 0.488525,
+      "bytes": 26060,
+      "vercelCache": "HIT",
+      "ageSeconds": 8
+    }
+  ],
+  "htmlChecks": {
+    "titlePresent": true,
+    "tierEntryPresent": true,
+    "nicknameInputPresent": true,
+    "rankingRows": 10,
+    "emptyCharacterSnapshotMessage": false,
+    "emptyCompositionMessage": false
+  },
+  "runtimeErrorScan": {
+    "deploymentScoped": true,
+    "lookback": "5m",
+    "levels": ["error", "fatal"],
+    "result": "No logs found for the specified criteria"
+  },
+  "limitations": [
+    "Two individual GET observations, not a controlled load test or p50/p95",
+    "Not an end-to-end retest of all player analysis and recommendation features",
+    "No data collection, snapshot rebuild, migration, credential or permission changes"
+  ]
+}

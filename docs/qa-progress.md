@@ -76,3 +76,13 @@ QA-005의 수집 성공→집계 실패 단계별 추적부터 진행한다. 단
 실 DB 읽기 경로의 브라우저에서는 검색→상세 6,344판 일치, 6개 보관 패치, 팀원 무기 제약 추천·점수 분해·후보 비교를 확인했다. 미존재 실험체 HTTP 404도 확인했다. 개인 분석은 별도 프록시가 외부 수집·DB 쓰기를 차단하는 고정 표본으로 40→20판 전환, 상세·저장·질문·실제 다운로드를 검증했다. 추천 비교를 펼쳤을 때의 모바일 문서 가로 넘침을 수정하고 390px 화면에서 문서 폭 375px, 표 내부 스크롤을 확인했다.
 
 운영 수집·집계 실행, 실제 닉네임 신규 수집/강제 갱신, 패치 import, 마이그레이션, 권한 변경, 상위 API 구매·키 변경과 배포는 실행하지 않았다. [검증 JSON](evidence/additional-features-validation-2026-10-27.json), [읽기 전용 상태](evidence/additions-readonly-status-2026-10-27.json), [모바일 분석 도구](evidence/additions-analysis-tools-mobile-2026-10-27.png), [모바일 후보 비교](evidence/additions-recommendation-mobile-2026-10-27.png).
+
+## 2026-10-28 KST — 메인 가속화·문서의 Test → main 반영
+
+사용자 요청에 따라 가속화 코드·테스트·날짜순 기록 문서를 커밋하고 GitHub `Test`에 먼저, `main`에 다음으로 반영했다. [1679a5d](https://github.com/Hy0yH/Project_ERPS/commit/1679a5df6a8d97b269c2949b0f39666ce152e0ff)이며 기존 Test의 QA·분석 기능 커밋 `67ff030`도 main에 함께 반영됐다. 강제 푸시 없이 fast-forward로 반영했고 두 원격 브랜치의 SHA 일치를 확인했다.
+
+- 01:00 KST: 타입 검사, 34개 파일·218개 테스트, 분리된 `.next-qa` 프로덕션 빌드 통과. 메인 사전 렌더링·1분 재검증 확인. 빌드가 자동 변경한 설정 파일은 기존 내용으로 복원했다.
+- 01:02 KST: Test·main 순차 푸시와 GitHub 메인 코드의 캐시 설정 반영 확인.
+- 01:04 KST: 같은 커밋의 Vercel 운영 배포 READY·운영 도메인 연결 확인. 첫 응답 0.894250초(`PRERENDER`), 반복 요청 0.487288초(`HIT`)와 상위 통계 총 10행 확인. 새 배포의 최근 5분 error/fatal 로그 조회에 일치 로그 없음.
+
+이번 운영 측정은 개별 GET 2회이며 p50/p95·동시 부하·전체 분석 기능 재검증은 아니다. DB 수집·재집계·마이그레이션·권한·자격 증명 변경은 수행하지 않았다. [변경 CHG-016](change-log.md#chg-016), [버그 ERPS-001](issue-log.md#erps-001), [운영 확인 JSON](evidence/home-release-2026-10-28.json).
