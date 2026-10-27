@@ -6,7 +6,7 @@ vi.mock("@/lib/supabase", () => ({
 }));
 vi.mock("@/lib/patch-version", () => ({ getActivePatch: vi.fn() }));
 
-import { getCharacterMeta, getSnapshotSummary, getTeamCompCount } from "@/lib/data";
+import { getCharacterMeta, getSnapshotSummary, getTeamCompCount, invalidateMetaReads } from "@/lib/data";
 import { getActivePatch } from "@/lib/patch-version";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
@@ -14,6 +14,7 @@ describe("snapshot selection after a patch update", () => {
   const filters: unknown[][] = [];
 
   beforeEach(() => {
+    invalidateMetaReads();
     filters.length = 0;
     vi.mocked(getActivePatch).mockResolvedValue({
       patch_key: "12.6.0",

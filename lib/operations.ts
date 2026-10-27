@@ -21,11 +21,37 @@ export function snapshotDiagnostic(value: unknown): OperationsStatus["runs"][num
   } catch { return null; }
 }
 const cache = createAsyncCache<OperationsStatus>(30_000, 1);
-export function invalidateOperationsStatus() { cache.clear(); }
+type PublicSnapshotStatus = Pick<OperationsStatus, "database" | "snapshots" | "stale" | "inconsistent">;
+const publicCache = createAsyncCache<PublicSnapshotStatus>(30_000, 1);
+export function invalidateOperationsStatus() { cache.clear(); publicCache.clear(); }
 export function summarizeFreshness(times: OperationsStatus["snapshots"], now = Date.now()) {
   const primary = [times.characters, times.compositions].map((value) => value ? Date.parse(value) : NaN);
   return { stale: primary.some((time) => !Number.isFinite(time) || now - time > 6 * 60 * 60_000),
     inconsistent: primary.some((time) => !Number.isFinite(time)) || Math.abs(primary[0] - primary[1]) > 15 * 60_000 };
+}
+
+// Public pages only need snapshot times, not ingestion logs and queue counts.
+export function getPublicSnapshotStatus(): Promise<PublicSnapshotStatus> {
+  return publicCache.get("snapshots", async () => {
+    const initial: PublicSnapshotStatus = { database: "unconfigured",
+      snapshots: { characters: null, compositions: null, benchmarks: null }, stale: true, inconsistent: true };
+    if (!isSupabaseConfigured()) return initial;
+    try {
+      const db = getSupabaseAdmin();
+      const patch = await getActivePatch(db);
+      const snapshot = async (table: "character_stats_snapshot" | "team_comp_stats") => {
+        let query = db.from(table).select("period_end").eq("rank_scope", "above:mythril").eq("period_days", 14);
+        if (patch?.patch_start_at) query = query.gte("period_start", patch.patch_start_at);
+        if (table === "character_stats_snapshot" && patch) query = query.eq("tier_filter", `current_patch:${patch.patch_key}`);
+        const { data, error } = await query.order("period_end", { ascending: false }).limit(1).maybeSingle();
+        if (error) throw error;
+        return data?.period_end ? String(data.period_end) : null;
+      };
+      const [characters, compositions] = await Promise.all([snapshot("character_stats_snapshot"), snapshot("team_comp_stats")]);
+      const snapshots = { characters, compositions, benchmarks: null };
+      return { database: "ready", snapshots, ...summarizeFreshness(snapshots) };
+    } catch { return { ...initial, database: "unavailable" }; }
+  });
 }
 export function getOperationsStatus(): Promise<OperationsStatus> {
   return cache.get("status", async () => {

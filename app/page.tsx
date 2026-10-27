@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { FeatureEntries } from "@/components/FeatureEntries";
 import { SnapshotStatus } from "@/components/SnapshotStatus";
 import { SetupNotice } from "@/components/SetupNotice";
@@ -6,23 +7,13 @@ import { getTargetPatchKey } from "@/lib/patch-version";
 import {
   getCharacterMeta,
   getSnapshotSummary,
-  getTeamComps,
-  getTeamCompCount,
+  getTopTeamComps,
   displayPercent
 } from "@/lib/data";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
-export default async function HomePage() {
-  const [meta, comps, compCount, snapshotSummary] = await Promise.all([
-    safeArray(getCharacterMeta()),
-    safeArray(getTeamComps([])),
-    safeNumber(getTeamCompCount()),
-    safeValue(getSnapshotSummary(), null)
-  ]);
-  const topMeta = meta.slice(0, 5);
-  const topComps = comps.slice(0, 5);
-
+export default function HomePage() {
   return (
     <>
       <section className="page-head hero-head">
@@ -35,8 +26,26 @@ export default async function HomePage() {
 
       <FeatureEntries />
       <SetupNotice />
-      <SnapshotStatus />
+      <Suspense fallback={<p className="muted" role="status">통계 갱신 기준을 확인하고 있습니다.</p>}>
+        <SnapshotStatus />
+      </Suspense>
+      <Suspense fallback={<section className="panel" role="status" aria-busy="true">메타 통계를 불러오고 있습니다. 티어표와 플레이 피드백을 먼저 이용할 수 있습니다.</section>}>
+        <HomeStatistics />
+      </Suspense>
+    </>
+  );
+}
 
+async function HomeStatistics() {
+  const [meta, topComps, snapshotSummary] = await Promise.all([
+    safeArray(getCharacterMeta()),
+    safeArray(getTopTeamComps()),
+    safeValue(getSnapshotSummary(), null)
+  ]);
+  const topMeta = meta.slice(0, 5);
+
+  return (
+    <>
       <section className="metrics-strip">
         <div className="metric metric-cell">
           <span className="muted">기준 패치</span>
@@ -48,7 +57,7 @@ export default async function HomePage() {
         </div>
         <div className="metric metric-cell">
           <span className="muted">조합 집계</span>
-          <strong>{(snapshotSummary?.comp_count ?? compCount).toLocaleString()}</strong>
+          <strong>{snapshotSummary?.comp_count.toLocaleString() ?? "집계 확인 중"}</strong>
         </div>
       </section>
 
@@ -108,14 +117,6 @@ async function safeArray<T>(promise: Promise<T[]>): Promise<T[]> {
     return await promise;
   } catch {
     return [];
-  }
-}
-
-async function safeNumber(promise: Promise<number>): Promise<number> {
-  try {
-    return await promise;
-  } catch {
-    return 0;
   }
 }
 

@@ -1,6 +1,6 @@
-import { getOperationsStatus } from "@/lib/operations";
+import { getPublicSnapshotStatus } from "@/lib/operations";
 export async function SnapshotStatus() {
-  const status = await getOperationsStatus();
+  const status = await getPublicSnapshotStatus();
   const format = (value: string | null) => value ? new Date(value).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "집계 없음";
   return <section className="snapshot-status panel" aria-label="통계 갱신 기준">
     <strong>통계 갱신 기준</strong>

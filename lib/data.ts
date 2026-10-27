@@ -23,20 +23,31 @@ import type {
 } from "@/lib/types";
 
 const TEAM_COMP_PAGE_SIZE = 1000;
+const TOP_COMP_PAGE_SIZE = 500;
 const PATCH_CHANGE_PAGE_SIZE = 1000;
 const compCache = createAsyncCache<TeamCompStat[]>(60_000);
-export function invalidateMetaReads() { compCache.clear(); }
+const topCompCache = createAsyncCache<TeamCompStat[]>(60_000);
+const characterCache = createAsyncCache<Character[]>(60_000, 1);
+const metaCache = createAsyncCache<CharacterMeta[]>(60_000);
+const compCountCache = createAsyncCache<number>(60_000);
+const patchCache = createAsyncCache<Awaited<ReturnType<typeof getActivePatch>>>(60_000, 1);
+const snapshotCache = createAsyncCache<{ period_start: string; period_end: string } | null>(60_000);
+export function invalidateMetaReads() {
+  for (const cache of [compCache, topCompCache, characterCache, metaCache, compCountCache, patchCache, snapshotCache]) cache.clear();
+}
 
 export async function getCharacters(): Promise<Character[]> {
   if (!isSupabaseConfigured()) return [];
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("characters")
-    .select("*")
-    .eq("is_active", true)
-    .order("name_ko");
-  if (error) throw error;
-  return (data ?? []) as Character[];
+  return characterCache.get("characters", async () => {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from("characters")
+      .select("*")
+      .eq("is_active", true)
+      .order("name_ko");
+    if (error) throw error;
+    return (data ?? []) as Character[];
+  });
 }
 
 export async function getCharacterMeta(
@@ -45,53 +56,90 @@ export async function getCharacterMeta(
 ): Promise<CharacterMeta[]> {
   if (!isSupabaseConfigured()) return [];
   const rankScope = parseRankScope(requestedRankScope);
-  const supabase = getSupabaseAdmin();
-  const latestSnapshot = await getLatestSnapshotInfo(
-    supabase,
-    "character_stats_snapshot",
-    periodDays,
-    rankScope
-  );
-  if (!latestSnapshot) return [];
+  return metaCache.get(`${periodDays}:${rankScope}`, async () => {
+    const supabase = getSupabaseAdmin();
+    const latestSnapshot = await getLatestSnapshotInfo(
+      supabase,
+      "character_stats_snapshot",
+      periodDays,
+      rankScope
+    );
+    if (!latestSnapshot) return [];
 
-  const { data, error } = await supabase
-    .from("character_stats_snapshot")
-    .select("*, characters(*)")
-    .eq("period_days", periodDays)
-    .eq("rank_scope", rankScope)
-    .eq("period_start", latestSnapshot.period_start)
-    .order("games", { ascending: false });
-  if (error) throw error;
+    const { data, error } = await supabase
+      .from("character_stats_snapshot")
+      .select("*, characters(*)")
+      .eq("period_days", periodDays)
+      .eq("rank_scope", rankScope)
+      .eq("period_start", latestSnapshot.period_start)
+      .order("games", { ascending: false });
+    if (error) throw error;
 
-  const latestByCharacter = new Map<string, any>();
-  for (const row of data ?? []) {
-    const code = Number(row.character_code);
-    const weaponCode = Number(row.weapon_code ?? 0);
-    const key = `${code}:${weaponCode}`;
-    if (!latestByCharacter.has(key)) latestByCharacter.set(key, row);
-  }
+    const latestByCharacter = new Map<string, any>();
+    for (const row of data ?? []) {
+      const code = Number(row.character_code);
+      const weaponCode = Number(row.weapon_code ?? 0);
+      const key = `${code}:${weaponCode}`;
+      if (!latestByCharacter.has(key)) latestByCharacter.set(key, row);
+    }
 
-  const meta = [...latestByCharacter.values()].map((row: any) => {
-    const name = String(row.characters?.name_ko ?? row.name_ko ?? row.character_code);
-    const currentWeaponName = weaponName(Number(row.weapon_code ?? 0));
-    return {
-      ...row.characters,
-      weapon_code: Number(row.weapon_code ?? 0),
-      weapon_name: currentWeaponName,
-      display_name: `${name} / ${currentWeaponName}`,
-      games: Number(row.games ?? 0),
-      pick_rate: Number(row.pick_rate ?? 0),
-      win_rate: Number(row.win_rate ?? 0),
-      top3_rate: Number(row.top3_rate ?? 0),
-      average_rank: Number(row.average_rank ?? 0),
-      confidence_score: Number(row.confidence_score ?? 0),
-      tier: "-",
-      rank_scope: String(row.rank_scope ?? rankScope),
-      sample_status: sampleStatus(Number(row.games ?? 0))
-    } as CharacterMeta;
-  }).sort(compareCharacterMeta);
+    const meta = [...latestByCharacter.values()].map((row: any) => {
+      const name = String(row.characters?.name_ko ?? row.name_ko ?? row.character_code);
+      const currentWeaponName = weaponName(Number(row.weapon_code ?? 0));
+      return {
+        ...row.characters,
+        weapon_code: Number(row.weapon_code ?? 0),
+        weapon_name: currentWeaponName,
+        display_name: `${name} / ${currentWeaponName}`,
+        games: Number(row.games ?? 0),
+        pick_rate: Number(row.pick_rate ?? 0),
+        win_rate: Number(row.win_rate ?? 0),
+        top3_rate: Number(row.top3_rate ?? 0),
+        average_rank: Number(row.average_rank ?? 0),
+        confidence_score: Number(row.confidence_score ?? 0),
+        tier: "-",
+        rank_scope: String(row.rank_scope ?? rankScope),
+        sample_status: sampleStatus(Number(row.games ?? 0))
+      } as CharacterMeta;
+    }).sort(compareCharacterMeta);
 
-  return assignCharacterRelativeTiers(meta);
+    return assignCharacterRelativeTiers(meta);
+  });
+}
+
+// Read the busiest combinations first. Since performance is clamped to [0, 1],
+// log1p(games) bounds every unread score without changing the existing ranking.
+export async function getTopTeamComps(
+  periodDays = DEFAULT_PERIOD_DAYS,
+  requestedRankScope: RankScope = DEFAULT_RANK_SCOPE
+): Promise<TeamCompStat[]> {
+  if (!isSupabaseConfigured()) return [];
+  const rankScope = parseRankScope(requestedRankScope);
+  return topCompCache.get(`${periodDays}:${rankScope}`, async () => {
+    const supabase = getSupabaseAdmin();
+    const [snapshot, characters, count] = await Promise.all([
+      getLatestSnapshotInfo(supabase, "team_comp_stats", periodDays, rankScope),
+      getCharacters(),
+      getTeamCompCount(periodDays, rankScope)
+    ]);
+    if (!snapshot || !count) return [];
+    const names = new Map(characters.map((character) => [character.character_code, character.name_ko]));
+    let top: TeamCompStat[] = [];
+    for (let from = 0; ; from += TOP_COMP_PAGE_SIZE) {
+      const { data, error } = await supabase.from("team_comp_stats")
+        .select("comp_key, character_codes, character_weapon_keys, comp_size, games, wins, top3, win_rate, top3_rate, average_rank, confidence_score")
+        .eq("period_days", periodDays).eq("rank_scope", rankScope).eq("period_start", snapshot.period_start)
+        .order("games", { ascending: false }).order("comp_key", { ascending: true })
+        .range(from, from + TOP_COMP_PAGE_SIZE - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as TeamCompStat[];
+      top = [...top, ...rows.map((row) => attachCompNames(row, names))].sort(compareTeamComps).slice(0, 5);
+      if (rows.length < TOP_COMP_PAGE_SIZE) break;
+      const maxUnreadScore = Math.log1p(Number(rows.at(-1)!.games));
+      if (top.length === 5 && teamCompRankingScore(top[4]) > maxUnreadScore) break;
+    }
+    return top.map((item, index) => ({ ...item, tier: tierFromRank(index, count) }));
+  });
 }
 
 export async function getTeamComps(
@@ -113,24 +161,24 @@ export async function getTeamComps(
   const normalizedCodes = [...new Set(characterCodes)].sort((a, b) => a - b);
   const cacheKey = `${periodDays}:${rankScope}:${latestSnapshot.period_start}:${latestSnapshot.period_end}:${normalizedCodes.join(",")}`;
   return compCache.get(cacheKey, async () => {
-  const data = await fetchTeamCompRows(
-    supabase,
-    normalizedCodes,
-    periodDays,
-    "*",
-    latestSnapshot.period_start,
-    rankScope
-  );
-  const characters = await getCharacters();
-  const characterNameByCode = new Map(
-    characters.map((character) => [character.character_code, character.name_ko])
-  );
-  const latestByComp = new Map<string, TeamCompStat>();
-  for (const row of data ?? []) {
-    const comp = attachCompNames(row as TeamCompStat, characterNameByCode);
-    if (!latestByComp.has(comp.comp_key)) latestByComp.set(comp.comp_key, comp);
-  }
-  return assignRelativeTiers([...latestByComp.values()].sort(compareTeamComps));
+    const data = await fetchTeamCompRows(
+      supabase,
+      normalizedCodes,
+      periodDays,
+      "*",
+      latestSnapshot.period_start,
+      rankScope
+    );
+    const characters = await getCharacters();
+    const characterNameByCode = new Map(
+      characters.map((character) => [character.character_code, character.name_ko])
+    );
+    const latestByComp = new Map<string, TeamCompStat>();
+    for (const row of data ?? []) {
+      const comp = attachCompNames(row as TeamCompStat, characterNameByCode);
+      if (!latestByComp.has(comp.comp_key)) latestByComp.set(comp.comp_key, comp);
+    }
+    return assignRelativeTiers([...latestByComp.values()].sort(compareTeamComps));
   });
 }
 
@@ -140,18 +188,20 @@ export async function getTeamCompCount(
 ) {
   if (!isSupabaseConfigured()) return 0;
   const rankScope = parseRankScope(requestedRankScope);
-  const supabase = getSupabaseAdmin();
-  const latestSnapshot = await getLatestSnapshotInfo(
-    supabase,
-    "team_comp_stats",
-    periodDays,
-    rankScope
-  );
-  if (!latestSnapshot) return 0;
-  const { count, error } = await supabase.from("team_comp_stats").select("comp_key", { count: "exact", head: true })
-    .eq("period_days", periodDays).eq("rank_scope", rankScope).eq("period_start", latestSnapshot.period_start);
-  if (error) throw error;
-  return count ?? 0;
+  return compCountCache.get(`${periodDays}:${rankScope}`, async () => {
+    const supabase = getSupabaseAdmin();
+    const latestSnapshot = await getLatestSnapshotInfo(
+      supabase,
+      "team_comp_stats",
+      periodDays,
+      rankScope
+    );
+    if (!latestSnapshot) return 0;
+    const { count, error } = await supabase.from("team_comp_stats").select("comp_key", { count: "exact", head: true })
+      .eq("period_days", periodDays).eq("rank_scope", rankScope).eq("period_start", latestSnapshot.period_start);
+    if (error) throw error;
+    return count ?? 0;
+  });
 }
 
 export async function getSnapshotSummary(
@@ -177,8 +227,8 @@ export async function getSnapshotSummary(
     .eq("period_start", latestCharacterSnapshot.period_start);
   if (error) throw error;
 
-  const latestPatch = await getActivePatch(supabase);
   const scopeLabel = String(data?.[0]?.tier_filter ?? "");
+  const latestPatch = scopeLabel.startsWith("current_patch:") ? null : await getReadPatch(supabase);
   const compCount = await getTeamCompCount(periodDays, rankScope);
 
   return {
@@ -556,22 +606,28 @@ async function getLatestSnapshotInfo(
   periodDays: number,
   rankScope: RankScope = DEFAULT_RANK_SCOPE
 ) {
-  const patch = await getActivePatch(supabase);
-  let query = supabase
-    .from(table)
-    .select("period_start, period_end")
-    .eq("period_days", periodDays)
-    .eq("rank_scope", rankScope)
-    .order("period_end", { ascending: false });
-  if (patch?.patch_start_at) {
-    query = query.gte("period_start", patch.patch_start_at);
-    if (table === "character_stats_snapshot") {
-      query = query.eq("tier_filter", `current_patch:${patch.patch_key}`);
+  return snapshotCache.get(`${table}:${periodDays}:${rankScope}`, async () => {
+    const patch = await getReadPatch(supabase);
+    let query = supabase
+      .from(table)
+      .select("period_start, period_end")
+      .eq("period_days", periodDays)
+      .eq("rank_scope", rankScope)
+      .order("period_end", { ascending: false });
+    if (patch?.patch_start_at) {
+      query = query.gte("period_start", patch.patch_start_at);
+      if (table === "character_stats_snapshot") {
+        query = query.eq("tier_filter", `current_patch:${patch.patch_key}`);
+      }
     }
-  }
-  const { data, error } = await query
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data as { period_start: string; period_end: string } | null;
+    const { data, error } = await query
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data as { period_start: string; period_end: string } | null;
+  });
+}
+
+function getReadPatch(supabase: ReturnType<typeof getSupabaseAdmin>) {
+  return patchCache.get("active", () => getActivePatch(supabase));
 }
