@@ -22,7 +22,7 @@ ERPS의 최초 수집 기준 패치는 **12.1.0**입니다. 2026-08-19에 추가
 | 2026-09-07 | 12.3 | 실험체 밸런스 변경 이력 추가 | [4004459](https://github.com/Hy0yH/Project_ERPS/commit/40044591a93789d9db553c1d4e8696071020fd8a) |
 | 2026-09-18 | 12.4 | 실험체 밸런스 변경 반영, 예약 수집 기준 전환 | [b1e75b3](https://github.com/Hy0yH/Project_ERPS/commit/b1e75b33a1d9a132d624aac6882177984e2deb05) |
 | 2026-10-05 | 12.5 | 실험체 밸런스 변경 반영, 대문·수집·집계 기준 전환 및 기존 데이터 보존 | [0adaaf3](https://github.com/Hy0yH/Project_ERPS/commit/0adaaf3a791d9d46cfe5d154cb2a266e312eff0e) |
-| 2026-10-18 | 12.6 | 실험체 28종 밸런스 변경 32건 반영, 10월 15일 이후 12.6 경기 소급 수집·집계 및 예약 수집 기준 전환 | 이번 업데이트 |
+| 2026-10-18 | 12.6 | 실험체 28종 밸런스 변경 32건 반영, 10월 15일 이후 12.6 경기 소급 수집·집계 및 예약 수집 기준 전환 | [CHG-010](docs/change-log.md#chg-010) |
 | 2026-10-29 | 12.7 | 실험체 26종 밸런스 변경 28건 추가, 레니 복합 조정·아르다 상향/하향 구분, 공식 점검 시작 시 수집·집계 기준 자동 전환 | [CHG-018](docs/change-log.md#chg-018) |
 
 누적 변경 내역의 공식 출처: [12.2](https://playeternalreturn.com/posts/news/3783?hl=ko-KR), [12.2b](https://playeternalreturn.com/posts/news/3801?hl=ko-KR), [12.3](https://playeternalreturn.com/posts/news/3813?hl=ko-KR), [12.4](https://playeternalreturn.com/posts/news/3838?hl=ko-KR), [12.5](https://playeternalreturn.com/posts/news/3867?hl=ko-KR), [12.6](https://playeternalreturn.com/posts/news/3898?hl=ko-KR), [12.7](https://playeternalreturn.com/posts/news/3924?hl=ko-KR).

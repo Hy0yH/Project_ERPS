@@ -1,0 +1,335 @@
+{
+  "recordedAtKst": "2026-10-29 09:57:41 KST",
+  "repository": "Hy0yH/Project_ERPS",
+  "branch": "main",
+  "codeCommit": "8a29710d9c454050b97beb3e75e24bad6e8eeb7e",
+  "officialSource": {
+    "url": "https://playeternalreturn.com/posts/news/3924?hl=ko-KR",
+    "downloadedHtmlSha256": "226F45E9303F25E98C698D72C840F8538A8B21B3E3A3DA7B3258DB8B7F4134F0",
+    "generalModeCharacters": 26,
+    "changeRecords": 28,
+    "buffs": 15,
+    "nerfs": 12,
+    "adjustments": 1
+  },
+  "verification": {
+    "testFiles": 35,
+    "testsPassed": 225,
+    "testsFailed": 0,
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "distDir": ".next-qa",
+    "localDbCredentialsConfigured": false
+  },
+  "productionDeployment": {
+    "id": "dpl_8m8fmmDqAEaZJ8r8X2XSGg8kZHgR",
+    "url": "https://project-erps-rojv09nai-erps1.vercel.app",
+    "state": "READY",
+    "target": "production",
+    "productionAlias": "https://project-erps.vercel.app",
+    "aliasConfirmed": true
+  },
+  "productionPatchChecks": [
+    {
+      "code": 2,
+      "weapon": 10,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 3,
+      "weapon": 19,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 7,
+      "weapon": 1,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 24,
+      "weapon": 3,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 25,
+      "weapon": 11,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 30,
+      "weapon": 13,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 31,
+      "weapon": 7,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 34,
+      "weapon": 23,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 50,
+      "weapon": 21,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 53,
+      "weapon": 14,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 55,
+      "weapon": 14,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 58,
+      "weapon": 10,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 60,
+      "weapon": 6,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 63,
+      "weapon": 15,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 64,
+      "weapon": 24,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 66,
+      "weapon": 24,
+      "status": 200,
+      "changes": 2,
+      "passed": true
+    },
+    {
+      "code": 67,
+      "weapon": 14,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 69,
+      "weapon": 9,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 70,
+      "weapon": 6,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 72,
+      "weapon": 11,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 78,
+      "weapon": 16,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 82,
+      "weapon": 21,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 83,
+      "weapon": 6,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 84,
+      "weapon": 18,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    },
+    {
+      "code": 89,
+      "weapon": 9,
+      "status": 200,
+      "changes": 2,
+      "passed": true
+    },
+    {
+      "code": 90,
+      "weapon": 11,
+      "status": 200,
+      "changes": 1,
+      "passed": true
+    }
+  ],
+  "productionUnaffectedWeaponChecks": [
+    {
+      "code": 2,
+      "weapon": 9,
+      "status": 200,
+      "passed": true
+    },
+    {
+      "code": 24,
+      "weapon": 21,
+      "status": 200,
+      "passed": true
+    },
+    {
+      "code": 3,
+      "weapon": 21,
+      "status": 200,
+      "passed": true
+    }
+  ],
+  "productionHtmlChecks": [
+    {
+      "path": "/",
+      "status": 200,
+      "checks": [
+        {
+          "value": "v12.6.0",
+          "passed": true
+        },
+        {
+          "value": "상위 캐릭터",
+          "passed": true
+        },
+        {
+          "value": "상위 조합",
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "path": "/characters/69?weapon=9",
+      "status": 200,
+      "checks": [
+        {
+          "value": "v12.7",
+          "passed": true
+        },
+        {
+          "value": "조정",
+          "passed": true
+        },
+        {
+          "value": "3.5%",
+          "passed": true
+        },
+        {
+          "value": "레니 레벨*2",
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "path": "/characters/66?weapon=24",
+      "status": 200,
+      "checks": [
+        {
+          "value": "v12.7",
+          "passed": true
+        },
+        {
+          "value": "버프 · 너프",
+          "passed": true
+        },
+        {
+          "value": "10% → 12%",
+          "passed": true
+        },
+        {
+          "value": "5초 → 4초",
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "path": "/characters/24?weapon=3",
+      "status": 200,
+      "checks": [
+        {
+          "value": "v12.7",
+          "passed": true
+        },
+        {
+          "value": "아델라 / 방망이",
+          "passed": true
+        },
+        {
+          "value": "4.6% → 4.5%",
+          "passed": true
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "timing": {
+    "automaticTargetBeforeMaintenance": "12.6.0",
+    "automaticTargetAtMaintenance": "12.7.0",
+    "maintenanceStart": "2026-10-29T02:00:00.000Z",
+    "expectedMaintenanceEnd": "2026-10-29T06:00:00.000Z",
+    "beforeAndAtBoundaryUnitTestPassed": true
+  },
+  "limitations": [
+    "No production match backfill, snapshot rebuild, migration, credential or permission changes.",
+    "Actual 12.7 matches, post-maintenance collection and the 11:00 KST production transition have not yet been observed.",
+    "Empty-statistics weapon fallback was verified with local mocked rendering; representative production character pages had existing 12.6 statistics.",
+    "Production HTML checks remove React separator comments before matching rendered text."
+  ]
+}
