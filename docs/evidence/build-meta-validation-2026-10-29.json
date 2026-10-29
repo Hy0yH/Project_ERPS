@@ -20,12 +20,30 @@
     "production database migration",
     "live authenticated Eternal Return API collection",
     "production snapshot rebuild",
-    "deployment",
+    "production deployment",
     "production or browser visual verification"
   ],
   "configuration": {
     "apiCredentialsAvailableInCurrentWorkspace": false,
     "databaseCredentialsAvailableInCurrentWorkspace": false
+  },
+  "testRelease": {
+    "recordedDateKst": "2026-10-29",
+    "branch": "Test",
+    "codeCommit": "9bf272d1dc8b5a81879fcba1dfae8cb4898bf9e0",
+    "projectId": "prj_y8kZYZJr0etu3Y4fOXnxN13I7BcS",
+    "deploymentId": "dpl_DsMsvTu1BsgV1nTEUkifcnZ9aXam",
+    "state": "READY",
+    "environment": "preview",
+    "deploymentUrl": "https://project-erps-7192payyw-erps1.vercel.app",
+    "branchUrl": "https://project-erps-git-test-erps1.vercel.app",
+    "browserOpenRequest": "queued by Codex; browser verification blocked at Google authentication boundary",
+    "shareLinkCreated": false,
+    "automaticReviewRejections": ["temporary share-link creation", "navigation to accounts.google.com"],
+    "protectionSettingsChanged": false,
+    "livePageOrApiVerified": false,
+    "productionChanged": false,
+    "migrationApplied": false
   },
   "requiredMigration": "supabase/migrations/009_build_meta.sql",
   "operationalSteps": "Apply migration, update deployed/collector code, run existing authenticated collect-rankers then build-snapshots jobs."

@@ -65,7 +65,7 @@
 | [CHG-017](#chg-017) | 2026-10-28 | 버그 27건 정리·기능 이력 분리·후속 기록 지침 | 문서 반영, 웹 배포 적용 불필요 |
 | [CHG-018](#chg-018) | 2026-10-29 | 12.7 실험체 26종 밸런스 변경·점검 시작 시 기준 자동 전환 | 운영 배포·26종 수치 대조 완료 |
 | [CHG-019](#chg-019) | 2026-10-29 | 프로젝트 기획을 공식 패치 이력·실제 성적 비교·현재 근거 추천 중심으로 변경 | 문서 검증 완료, 웹 배포 적용 불필요 |
-| [CHG-020](#chg-020) | 2026-10-29 | 아이템·특성·루트·전술 스킬 상세 수집·통계와 패치/추천 맥락 연결 | 로컬 구현·검증, 운영 DB 적용·수집·배포 미실행 |
+| [CHG-020](#chg-020) | 2026-10-29 | 아이템·특성·루트·전술 스킬 상세 수집·통계와 패치/추천 맥락 연결 | Test 배포 READY, 운영 DB 적용·수집·main 배포 미실행 |
 
 ## 상세 이력
 
@@ -324,6 +324,8 @@
 - **사용 조건·구현 상태:** 로컬 구현 완료. [009 마이그레이션](../supabase/migrations/009_build_meta.sql), 새 코드 반영, 기존 예약 수집 및 스냅샷 실행이 필요하다. 이 작업 환경에는 API/DB 인증 설정이 없어 운영 마이그레이션·실제 수집·재집계·배포는 실행하지 않았다. 운영 해결·수집 완료로 기록하지 않는다.
 - **검증:** 변경 전 35파일 225테스트와 타입 검사 통과. 변경 후 39파일 251테스트·타입 검사 및 분리된 `.next-build-meta-qa` 프로덕션 빌드를 검증했다. 상세 분모·중복·정규화·스냅샷 연결, 카탈로그 부분 실패·해시·패치 보관, 삭제/실패 루트·조회 시간 예산, 다른 모드 제외, 검수 인증/대상 코드, API 범위·AI 맥락 제한을 모의 응답으로 확인했다. 실제 API/운영 DB 값·운영 화면은 미검증이다. [검증 기록](evidence/build-meta-validation-2026-10-29.json).
 - **관련 버그:** 패치 버전 추출 보완은 [ERPS-030](issue-log.md#erps-030)에 원인·재현·검증을 별도 기록한다. 기존 [ERPS-005](issue-log.md#erps-005)의 실험체 자동 연결·방향 분류 전체를 해결한 것으로 보지 않는다.
+- **후속 Test 반영 — 2026-10-29 KST:** 사용자 요청으로 [9bf272d](https://github.com/Hy0yH/Project_ERPS/commit/9bf272d1dc8b5a81879fcba1dfae8cb4898bf9e0)를 기존 `Test` 브랜치에 fast-forward로 반영했다. Vercel `project-erps`의 해당 커밋 배포 `dpl_DsMsvTu1BsgV1nTEUkifcnZ9aXam`이 READY이며 [Test 주소](https://project-erps-git-test-erps1.vercel.app)에 연결됐다. `main`과 운영 배포는 변경하지 않았다.
+- **사이트 열기·미검증 범위:** Codex 브라우저 열기를 요청했다. 임시 공유 링크 생성과 브라우저의 Google 인증 페이지 이동은 자동 승인 검토에서 각각 거부되어, 로그인 이후 화면·새 API의 실제 응답은 확인하지 못했다. 접근 보호를 해제하거나 공유 링크를 우회 생성하지 않았다. 009 마이그레이션과 실제 재수집·집계는 계속 미실행이다.
 - **근거:** [프로젝트 프롬프트](../PROJECT_PROMPT.md), [구현·운영 절차](build-meta-2026-10-29.md), [집계](../lib/build-stats.ts), [수집/조회](../lib/build-data.ts), [화면](../components/BuildMetaPanel.tsx), [상세 API](../app/api/characters/[characterCode]/builds/route.ts).
 
 ## DB 구조 변경 이력
@@ -340,7 +342,7 @@
 | [006](../supabase/migrations/006_player_uid_identity.sql) | 2026-08-19 | 외부 사용자 UID 저장 |
 | [007](../supabase/migrations/007_collection_queue.sql) | 2026-08-19 | 랭커 수집 커서와 재시도 경기 큐 |
 | [008](../supabase/migrations/008_character_combat_archetypes.sql) | 2026-09-04 | 공식 역할군·실험체/무기별 전투 분류 |
-| [009](../supabase/migrations/009_build_meta.sql) | 2026-10-29 로컬 추가 (미커밋) | 상세 수집 버전·상세 통계 JSON·패치별 카탈로그/완료 해시·공유 루트·장비/특성/전술 변경. 운영 DB 적용 미실행 |
+| [009](../supabase/migrations/009_build_meta.sql) | 2026-10-29 ([9bf272d](https://github.com/Hy0yH/Project_ERPS/commit/9bf272d1dc8b5a81879fcba1dfae8cb4898bf9e0)) | 상세 수집 버전·상세 통계 JSON·패치별 카탈로그/완료 해시·공유 루트·장비/특성/전술 변경. 운영 DB 적용 미실행 |
 
 10월의 실제 통계·개인 성적 등급·선택 픽·분석 도구는 기존 테이블과 JSON을 활용한다. 해당 기능을 추가했다는 이유만으로 미존재 마이그레이션을 적용하도록 안내하지 않는다.
 

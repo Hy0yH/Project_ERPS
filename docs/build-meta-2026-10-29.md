@@ -48,6 +48,8 @@
 
 **현재 반영 상태:** 로컬 코드·마이그레이션 파일 구현. 이 작업 환경에는 API/DB 인증 설정이 없어 운영 마이그레이션, 실제 API 수집, 운영 재집계·배포를 실행하지 않았다. 테스트 자료와 실제 운영 데이터의 확인을 구분한다.
 
+**2026-10-29 KST Test 반영:** 기능 커밋 [9bf272d](https://github.com/Hy0yH/Project_ERPS/commit/9bf272d1dc8b5a81879fcba1dfae8cb4898bf9e0)를 `Test`에 올렸고 Vercel 배포가 READY다. [테스트 사이트](https://project-erps-git-test-erps1.vercel.app)는 접근 보호가 적용된다. Codex에서 주소 열기를 요청했으나 공유 링크 생성 및 Google 인증 화면 이동이 자동 승인 검토에서 거부돼 로그인 후 페이지와 실제 API 응답은 미확인이다. `main` 배포·DB 마이그레이션·실제 상세 수집은 포함하지 않았다.
+
 ## 로컬 검증
 
 - 변경 전: 기존 35파일 225테스트, 타입 검사 통과.
