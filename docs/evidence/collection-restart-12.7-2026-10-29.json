@@ -1,0 +1,195 @@
+{
+  "recordedDateKst": "2026-10-29",
+  "currentStatus": "first_cycle_succeeded",
+  "initialAttempt": {
+    "recordedAtKst": "2026-10-29T16:57:54+09:00",
+    "requestedPatch": "12.7.0",
+    "codeCommit": "7647b727d83cc27a6e12cb6169785d28acaa8e61",
+    "productionBuild": "passed",
+    "buildId": "txqoo3CPwNyNL8ocXf2iG",
+    "localConfigPatch": "12.7.0",
+    "previousCollectorPatch": "12.6.0",
+    "schemaMigrationApplied": false,
+    "missingSchema": [
+      "match_players.build_data_version",
+      "character_stats_snapshot.build_stats",
+      "game_data_catalog",
+      "weapon_route_cache",
+      "game_catalog_versions",
+      "build_patch_changes"
+    ],
+    "databaseConnectionConfigured": false,
+    "baselineMatches": {
+      "12.6.0": 13778,
+      "12.7.0": 0
+    },
+    "baselineObservedAt": "2026-10-29T07:55:03.372Z",
+    "collectorProcessStopped": true,
+    "dedicatedServerStopped": true,
+    "scheduledTaskTemporarilyDisabled": true,
+    "scheduledTaskName": "Project_ERPS_Data_Collection",
+    "existingInterval": "PT2H",
+    "checkpointBackup": ".scheduler/restart-12.7-before.collection-state.json",
+    "newCollectionStarted": false,
+    "newSnapshotBuildStarted": false,
+    "databaseRowsDeleted": false,
+    "browserAutomation": "Stopped because the current browser URL could not be verified",
+    "requiredNextSteps": [
+      "Apply supabase/migrations/009_build_meta.sql to the existing operational database",
+      "Enable and start the existing collection task",
+      "Verify 12.7 match storage and snapshot completion"
+    ]
+  },
+  "followUp": {
+    "observedAt": "2026-10-29T10:39:43.496Z",
+    "status": "collecting",
+    "migrationApplied": true,
+    "migrationAppliedAtKst": "2026-10-29 19:36",
+    "migrationMethod": "Authenticated Supabase SQL Editor; transaction with 10s lock timeout and 120s statement timeout",
+    "projectMatchedLocalConfiguration": true,
+    "schemaChecksPassed": 6,
+    "newTablesRlsEnabled": true,
+    "databaseRowsDeleted": false,
+    "localCronExampleSecretReplaced": true,
+    "secretLogged": false,
+    "collectorPatch": "12.7.0",
+    "collectorBuildId": "txqoo3CPwNyNL8ocXf2iG",
+    "collectorPort": 3101,
+    "collectionRunId": 279,
+    "collectionStatus": "running",
+    "scheduleState": "Running",
+    "existingInterval": "PT2H",
+    "nextScheduledAtKst": "2026-10-29 20:23:23",
+    "catalogRows": 820,
+    "completedCatalogTables": 3,
+    "newPatchQueueCount": 37,
+    "rankersScanned": 10,
+    "storedMatches": {
+      "12.7.0": 0,
+      "12.6.0": 13778
+    },
+    "firstSnapshotCompleted": false,
+    "snapshotExecution": "Existing scheduler runs build-snapshots after collection succeeds",
+    "productionWebVerified": false,
+    "initialBlockersResolved": true
+  },
+  "migrationSuccessScreenshot": "collection-migration-009-success-2026-10-29.jpg",
+  "latestProgress": {
+    "observedAt": "2026-10-29T10:42:29.527Z",
+    "collectionRunId": 279,
+    "collectionStatus": "running",
+    "newPatchQueueCount": 65,
+    "rankersScanned": 51,
+    "catalogRows": 820,
+    "storedPatchMatches": 0,
+    "firstSnapshotCompleted": false,
+    "schedulerState": "Running"
+  },
+  "completion": {
+    "verifiedAt": "2026-10-29T20:07:45.536305+09:00",
+    "verifiedVia": "Connected Supabase SQL tool, local scheduler logs, local and production HTTP APIs",
+    "projectStatus": "ACTIVE_HEALTHY",
+    "patch": "12.7.0",
+    "matches": 75,
+    "playersWithBuildDetails": 1710,
+    "characterSnapshotRows": 1170,
+    "teamCompSnapshotRows": 1890,
+    "benchmarkRows": 358,
+    "catalogRows": 820,
+    "completedCatalogTables": 3,
+    "runs": [
+      {
+        "id": 279,
+        "status": "success",
+        "job_name": "collect-rankers",
+        "started_at": "2026-10-29T19:38:15.699547+09:00",
+        "finished_at": "2026-10-29T19:49:40.078+09:00",
+        "saved_matches": 75
+      },
+      {
+        "id": 280,
+        "status": "success",
+        "job_name": "build-snapshots",
+        "started_at": "2026-10-29T19:49:26.930394+09:00",
+        "finished_at": "2026-10-29T19:50:49.252+09:00",
+        "saved_matches": 0
+      }
+    ],
+    "queue": [
+      {
+        "count": 75,
+        "status": "completed"
+      }
+    ],
+    "collectorResult": {
+      "savedMatches": 75,
+      "failedRankers": 0,
+      "failedMatches": 0,
+      "pendingMatches": 0,
+      "attemptedUsers": 120,
+      "discoveryPages": 124,
+      "elapsedSeconds": 671,
+      "missingCatalogTypes": [
+        "TacticalSkillGroup"
+      ]
+    },
+    "snapshotResult": {
+      "characters": 1170,
+      "comps": 1890,
+      "players": 1710,
+      "compPlayers": 1710,
+      "rejectedWeaponMappings": 0,
+      "benchmarks": 358,
+      "routes": {
+        "saved": 0,
+        "unavailable": 16,
+        "failed": 0,
+        "deferred": 428
+      }
+    },
+    "scheduler": {
+      "state": "Ready",
+      "lastTaskResult": 0,
+      "interval": "PT2H",
+      "nextRunAtKst": "2026-10-29 20:23:23"
+    },
+    "httpVerification": [
+      {
+        "base": "http://localhost:3101",
+        "metaStatus": 200,
+        "metaRows": 117,
+        "buildStatus": 200,
+        "characterCode": 89,
+        "weaponCode": 9,
+        "patchKey": "12.7.0",
+        "rankScope": "above:mythril",
+        "hasStats": true,
+        "periodStart": "2026-10-29T11:00:00+09:00",
+        "periodEnd": "2026-10-29T19:50:15.012+09:00"
+      },
+      {
+        "base": "https://project-erps.vercel.app",
+        "metaStatus": 200,
+        "metaRows": 117,
+        "buildStatus": 200,
+        "characterCode": 89,
+        "weaponCode": 9,
+        "patchKey": "12.7.0",
+        "rankScope": "above:mythril",
+        "hasStats": true,
+        "periodStart": "2026-10-29T11:00:00+09:00",
+        "periodEnd": "2026-10-29T19:50:15.012+09:00"
+      }
+    ],
+    "schemaSecurity": {
+      "newTablesRlsEnabled": true,
+      "advisors": "18 INFO RLS-without-policy findings consistent with server service-role access; one existing WARN for public.player_summary mutable search_path. No unrelated configuration changes."
+    },
+    "limits": [
+      "First successful 75-match patch batch; does not prove prior large-snapshot timeouts are resolved",
+      "TacticalSkillGroup catalog not provided in this run",
+      "16 shared routes unavailable; 428 deferred under the existing time budget",
+      "Production APIs verified; no new browser visual audit"
+    ]
+  }
+}

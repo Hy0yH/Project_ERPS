@@ -1,0 +1,223 @@
+{
+  "recordedAtKst": "2026-10-29T20:18:40+09:00",
+  "applicationTests": {
+    "command": "pnpm test",
+    "testFilesPassed": 39,
+    "testsPassed": 251
+  },
+  "typecheck": {
+    "command": "pnpm typecheck",
+    "status": "passed"
+  },
+  "scope": "Application source is unchanged; the PowerShell scheduler authentication check was corrected and independently verified.",
+  "schedulerAuthentication": {
+    "baseline": {
+      "phase": "baseline",
+      "recordedAtKst": "2026-10-29T20:14:08+09:00",
+      "mode": "Isolated temporary project fixture; -DryRun only; fake credentials; no HTTP or database calls",
+      "results": [
+        {
+          "case": "valid_cron_secret",
+          "expectedExit": 0,
+          "actualExit": 0,
+          "passed": true,
+          "reportedValid": true
+        },
+        {
+          "case": "example_cron_secret",
+          "expectedExit": 1,
+          "actualExit": 0,
+          "passed": false,
+          "reportedValid": true
+        },
+        {
+          "case": "admin_token_only",
+          "expectedExit": 1,
+          "actualExit": 0,
+          "passed": false,
+          "reportedValid": true
+        },
+        {
+          "case": "empty_cron_with_admin",
+          "expectedExit": 1,
+          "actualExit": 0,
+          "passed": false,
+          "reportedValid": true
+        },
+        {
+          "case": "missing_cron_secret",
+          "expectedExit": 1,
+          "actualExit": 1,
+          "passed": true,
+          "reportedValid": false
+        },
+        {
+          "case": "quoted_cron_secret",
+          "expectedExit": 0,
+          "actualExit": 0,
+          "passed": true,
+          "reportedValid": true
+        }
+      ]
+    },
+    "fixed": {
+      "phase": "fixed",
+      "recordedAtKst": "2026-10-29T20:14:19+09:00",
+      "mode": "Isolated temporary project fixture; -DryRun only; fake credentials; no HTTP or database calls",
+      "results": [
+        {
+          "case": "valid_cron_secret",
+          "expectedExit": 0,
+          "actualExit": 0,
+          "passed": true,
+          "reportedValid": true
+        },
+        {
+          "case": "example_cron_secret",
+          "expectedExit": 1,
+          "actualExit": 1,
+          "passed": true,
+          "reportedValid": false
+        },
+        {
+          "case": "admin_token_only",
+          "expectedExit": 1,
+          "actualExit": 1,
+          "passed": true,
+          "reportedValid": false
+        },
+        {
+          "case": "empty_cron_with_admin",
+          "expectedExit": 1,
+          "actualExit": 1,
+          "passed": true,
+          "reportedValid": false
+        },
+        {
+          "case": "missing_cron_secret",
+          "expectedExit": 1,
+          "actualExit": 1,
+          "passed": true,
+          "reportedValid": false
+        },
+        {
+          "case": "quoted_cron_secret",
+          "expectedExit": 0,
+          "actualExit": 0,
+          "passed": true,
+          "reportedValid": true
+        }
+      ]
+    },
+    "realConfigurationDryRun": "passed"
+  },
+  "database": {
+    "latest_runs": [
+      {
+        "id": 280,
+        "status": "success",
+        "job_name": "build-snapshots",
+        "started_at": "2026-10-29T10:49:26.930394+00:00",
+        "finished_at": "2026-10-29T10:50:49.252+00:00",
+        "saved_matches": 0
+      },
+      {
+        "id": 279,
+        "status": "success",
+        "job_name": "collect-rankers",
+        "started_at": "2026-10-29T10:38:15.699547+00:00",
+        "finished_at": "2026-10-29T10:49:40.078+00:00",
+        "saved_matches": 75
+      },
+      {
+        "id": 278,
+        "status": "running",
+        "job_name": "collect-rankers",
+        "started_at": "2026-10-29T07:44:06.639419+00:00",
+        "finished_at": null,
+        "saved_matches": 0
+      },
+      {
+        "id": 277,
+        "status": "running",
+        "job_name": "collect-rankers",
+        "started_at": "2026-10-28T19:23:33.320956+00:00",
+        "finished_at": null,
+        "saved_matches": 0
+      }
+    ],
+    "observed_at": "2026-10-29T11:12:17.847602+00:00",
+    "patch_queues": [
+      {
+        "count": 75,
+        "status": "completed"
+      }
+    ],
+    "patch_matches": 75,
+    "snapshots_without_details": 0,
+    "snapshot_patch_contamination": 0
+  },
+  "http": [
+    {
+      "name": "local build",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "patchKey": "12.7.0",
+      "hasStats": true
+    },
+    {
+      "name": "production build",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "patchKey": "12.7.0",
+      "hasStats": true
+    },
+    {
+      "name": "invalid build input",
+      "status": 400,
+      "expected": 400,
+      "passed": true,
+      "hasStats": false
+    },
+    {
+      "name": "invalid collection token",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "hasStats": false
+    }
+  ],
+  "documentation": {
+    "histories": [
+      {
+        "file": "docs/change-log.md",
+        "entries": 20,
+        "uniqueIds": true,
+        "listMatchesDetails": true,
+        "dateAndIdOrder": true,
+        "anchors": true
+      },
+      {
+        "file": "docs/issue-log.md",
+        "entries": 31,
+        "uniqueIds": true,
+        "listMatchesDetails": true,
+        "dateAndIdOrder": true,
+        "anchors": true
+      }
+    ],
+    "localLinksChecked": 215
+  },
+  "secretScan": {
+    "status": "passed",
+    "privateFilesIgnored": true,
+    "credentialValuesIncluded": false
+  },
+  "limitations": [
+    "The next full scheduler run after the PowerShell fix has not yet completed.",
+    "Previous large 12.6 snapshot timeouts and historical orphaned running records are not marked resolved.",
+    "Known missing tactical catalog and unavailable/deferred shared routes remain documented in the first-cycle receipt."
+  ]
+}

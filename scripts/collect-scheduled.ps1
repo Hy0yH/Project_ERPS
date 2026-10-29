@@ -44,6 +44,15 @@ function Read-DotEnv {
   return $values
 }
 
+function Get-CollectionSecret {
+  param([hashtable]$EnvValues)
+  $value = [string]$EnvValues["CRON_SECRET"]
+  if ([string]::IsNullOrWhiteSpace($value) -or $value -ceq "change-me") {
+    throw "A non-empty, non-example CRON_SECRET is required in .env.local. ADMIN_TOKEN cannot authenticate collection requests."
+  }
+  return $value
+}
+
 function Test-AppServer {
   try {
     $script:ServerHealth = Invoke-RestMethod -Uri "$BaseUrl/api/health" -TimeoutSec 10
@@ -126,15 +135,14 @@ if ($DryRun) {
     "ETERNAL_RETURN_API_KEY",
     "NEXT_PUBLIC_SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
-    "ER_SEASON_ID"
+    "ER_SEASON_ID",
+    "CRON_SECRET"
   )
   $missing = @($required | Where-Object { !$envValues[$_] })
-  if (!$envValues["CRON_SECRET"] -and !$envValues["ADMIN_TOKEN"]) {
-    $missing += "CRON_SECRET"
-  }
   if ($missing.Count -gt 0) {
     throw "Missing scheduler configuration: $($missing -join ', ')"
   }
+  $null = Get-CollectionSecret -EnvValues $envValues
   Write-Output "Collection scheduler configuration is valid."
   Write-Output "Port=$Port"
   Write-Output "Season=$($envValues['ER_SEASON_ID'])"
@@ -183,13 +191,7 @@ try {
   $lockStream.Flush()
 
   $envValues = Read-DotEnv (Join-Path $ProjectDir ".env.local")
-  $secret = $envValues["CRON_SECRET"]
-  if (!$secret) {
-    $secret = $envValues["ADMIN_TOKEN"]
-  }
-  if (!$secret) {
-    throw "CRON_SECRET or ADMIN_TOKEN is required in .env.local."
-  }
+  $secret = Get-CollectionSecret -EnvValues $envValues
   $headers = @{ Authorization = "Bearer $secret" }
 
   Ensure-AppServer -EnvValues $envValues
