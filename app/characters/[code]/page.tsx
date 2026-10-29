@@ -5,6 +5,7 @@ import { rankScopeLabel, DEFAULT_RANK_SCOPE } from "@/lib/rank-scopes";
 import { characterBrowseParams, parseCharacterBrowse, type CharacterBrowseQuery } from "@/lib/character-browser";
 import { getCharacterPatchMeta } from "@/lib/meta-history";
 import { PatchMetaHistory } from "@/components/PatchMetaHistory";
+import { isCharacterWeapon, weaponCodeForType, weaponName } from "@/lib/weapons";
 import {
   patchChangeLabel,
   patchChangeSections,
@@ -29,14 +30,23 @@ export default async function CharacterDetailPage({
     getTeamComps([characterCode]),
     getCharacters()
   ]);
-  if (characters.length && !characters.some((item) => item.character_code === characterCode)) notFound();
+  const catalogCharacter = characters.find((item) => item.character_code === characterCode);
+  if (characters.length && !catalogCharacter) notFound();
   const character = meta.find((item) =>
     item.character_code === characterCode &&
     Number.isFinite(requestedWeaponCode) &&
     requestedWeaponCode > 0 &&
     item.weapon_code === requestedWeaponCode
   ) ?? meta.find((item) => item.character_code === characterCode);
-  const patches = await getPatchHistory(characterCode, character?.weapon_code).catch(() => []);
+  const patchWeaponCode = character?.weapon_code ?? (
+    isCharacterWeapon(catalogCharacter?.weapon_types, requestedWeaponCode)
+      ? requestedWeaponCode
+      : weaponCodeForType(catalogCharacter?.weapon_types?.[0])
+  );
+  const characterName = character?.display_name ?? (catalogCharacter
+    ? `${catalogCharacter.name_ko}${patchWeaponCode ? ` / ${weaponName(patchWeaponCode)}` : ""}`
+    : `캐릭터 ${characterCode}`);
+  const patches = await getPatchHistory(characterCode, patchWeaponCode).catch(() => []);
   const trend = character ? await getCharacterPatchMeta(characterCode, character.weapon_code, rankScope).catch(() => null) : [];
   const patchesByVersion = new Map<string, typeof patches>();
   for (const patch of patches) {
@@ -50,7 +60,7 @@ export default async function CharacterDetailPage({
       <section className="page-head">
         <div className="headline-block">
           <span className="headline-slash" aria-hidden="true" />
-          <h1>{character?.display_name ?? `캐릭터 ${characterCode}`}</h1>
+          <h1>{characterName}</h1>
           <p>현재 패치 {rankScopeLabel(rankScope)} 기준입니다. 실험체 통계와 선택한 무기를 유지해 표시합니다.</p>
           <Link href={`/characters?${characterBrowseParams(query)}`}>같은 조건의 티어표로 돌아가기</Link>
         </div>

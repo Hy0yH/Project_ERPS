@@ -17,20 +17,20 @@ describe("snapshot selection after a patch update", () => {
     invalidateMetaReads();
     filters.length = 0;
     vi.mocked(getActivePatch).mockResolvedValue({
-      patch_key: "12.6.0",
+      patch_key: "12.7.0",
       version_season: 12,
-      version_major: 6,
+      version_major: 7,
       version_minor: 0,
-      patch_start_at: "2026-10-15T02:00:00.000Z",
+      patch_start_at: "2026-10-29T02:00:00.000Z",
       latest_match_at: ""
     });
     vi.mocked(getSupabaseAdmin).mockReturnValue({
       from: (table: string) => {
         let eligible = true;
         const oldSnapshot = {
-          period_start: "2026-10-01T02:00:00.000Z",
-          period_end: "2026-10-18T00:00:00.000Z",
-          tier_filter: "current_patch:12.5.0"
+          period_start: "2026-10-15T02:00:00.000Z",
+          period_end: "2026-10-29T00:00:00.000Z",
+          tier_filter: "current_patch:12.6.0"
         };
         const query: any = {
           select: () => query,
@@ -53,14 +53,14 @@ describe("snapshot selection after a patch update", () => {
     } as any);
   });
 
-  it("keeps 12.5 character statistics out of the 12.6 homepage until new statistics exist", async () => {
+  it("keeps 12.6 character statistics out of the 12.7 homepage until new statistics exist", async () => {
     expect(await getCharacterMeta()).toEqual([]);
     expect(await getSnapshotSummary()).toBeNull();
-    expect(filters).toContainEqual(["character_stats_snapshot", "tier_filter", "current_patch:12.6.0"]);
+    expect(filters).toContainEqual(["character_stats_snapshot", "tier_filter", "current_patch:12.7.0"]);
   });
 
   it("keeps old team statistics out of the current patch", async () => {
     expect(await getTeamCompCount()).toBe(0);
-    expect(filters).toContainEqual(["team_comp_stats", "period_start", "2026-10-15T02:00:00.000Z"]);
+    expect(filters).toContainEqual(["team_comp_stats", "period_start", "2026-10-29T02:00:00.000Z"]);
   });
 });

@@ -3,12 +3,38 @@ import { getStoredPatchInfo, getTargetPatchKey, matchesPatch, parsePatchKey, res
 import type { PatchVersion } from "@/lib/types";
 
 describe("active patch selection", () => {
-  it("advances missing or stale deployment settings to the published 12.6 patch", () => {
-    expect(getTargetPatchKey("")).toBe("12.6.0");
-    expect(getTargetPatchKey("12.5.0")).toBe("12.6.0");
-    expect(getTargetPatchKey("invalid")).toBe("12.6.0");
-    expect(getTargetPatchKey("12.6")).toBe("12.6.0");
-    expect(getTargetPatchKey("12.7")).toBe("12.7.0");
+  const after12_7Maintenance = Date.parse("2026-10-29T02:00:00.000Z");
+
+  it("advances missing or stale deployment settings to the published 12.7 patch", () => {
+    expect(getTargetPatchKey("", after12_7Maintenance)).toBe("12.7.0");
+    expect(getTargetPatchKey("12.5.0", after12_7Maintenance)).toBe("12.7.0");
+    expect(getTargetPatchKey("invalid", after12_7Maintenance)).toBe("12.7.0");
+    expect(getTargetPatchKey("12.6", after12_7Maintenance)).toBe("12.7.0");
+    expect(getTargetPatchKey("12.7", after12_7Maintenance)).toBe("12.7.0");
+    expect(getTargetPatchKey("12.8", after12_7Maintenance)).toBe("12.8.0");
+  });
+
+  it("keeps 12.6 statistics until the official 12.7 maintenance starts", () => {
+    const beforeMaintenance = after12_7Maintenance - 1;
+    expect(getTargetPatchKey("", beforeMaintenance)).toBe("12.6.0");
+    expect(getTargetPatchKey("12.5.0", beforeMaintenance)).toBe("12.6.0");
+    expect(getTargetPatchKey("invalid", beforeMaintenance)).toBe("12.6.0");
+    expect(getTargetPatchKey("", after12_7Maintenance)).toBe("12.7.0");
+    // 명시적으로 지정한 새 패치를 우선하는 운영 설정은 유지합니다.
+    expect(getTargetPatchKey("12.7", beforeMaintenance)).toBe("12.7.0");
+  });
+
+  it("starts 12.7 at October 29 maintenance and rejects previous-patch games", async () => {
+    const query: any = {
+      select: () => query, eq: () => query, order: () => query, limit: () => query,
+      maybeSingle: async () => ({ data: null, error: null })
+    };
+    const info = await getStoredPatchInfo({ from: () => query }, 12, 7, 0);
+    expect(info?.patch_start_at).toBe("2026-10-29T02:00:00.000Z");
+    expect(resolveActivePatch(parsePatchKey(getTargetPatchKey("12.6.0", after12_7Maintenance)), info, patch("12.6.0"))?.patch_key)
+      .toBe("12.7.0");
+    expect(matchesPatch({ versionSeason: 12, versionMajor: 6, versionMinor: 0 }, info)).toBe(false);
+    expect(matchesPatch({ versionSeason: 12, versionMajor: 7, versionMinor: 0 }, info)).toBe(true);
   });
 
   it("starts 12.6 at October 15 maintenance and selects it before any new match is stored", async () => {
@@ -18,7 +44,7 @@ describe("active patch selection", () => {
     };
     const info = await getStoredPatchInfo({ from: () => query }, 12, 6, 0);
     expect(info?.patch_start_at).toBe("2026-10-15T02:00:00.000Z");
-    expect(resolveActivePatch(parsePatchKey(getTargetPatchKey("12.5.0")), info, patch("12.5.0"))?.patch_key)
+    expect(resolveActivePatch(parsePatchKey("12.6.0"), info, patch("12.5.0"))?.patch_key)
       .toBe("12.6.0");
     expect(matchesPatch({ versionSeason: 12, versionMajor: 5, versionMinor: 0 }, info)).toBe(false);
     expect(matchesPatch({ versionSeason: 12, versionMajor: 6, versionMinor: 0 }, info)).toBe(true);

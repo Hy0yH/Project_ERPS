@@ -6,6 +6,7 @@ export const PATCH_12_3_SOURCE_URL = "https://playeternalreturn.com/posts/news/3
 export const PATCH_12_4_SOURCE_URL = "https://playeternalreturn.com/posts/news/3838?hl=ko-KR";
 export const PATCH_12_5_SOURCE_URL = "https://playeternalreturn.com/posts/news/3867?hl=ko-KR";
 export const PATCH_12_6_SOURCE_URL = "https://playeternalreturn.com/posts/news/3898?hl=ko-KR";
+export const PATCH_12_7_SOURCE_URL = "https://playeternalreturn.com/posts/news/3924?hl=ko-KR";
 
 type BundledPatchChange = Omit<PatchChange, "reviewed"> & { reviewed: true };
 
@@ -134,11 +135,53 @@ function patch12_6Change(
   };
 }
 
+function patch12_7Change(
+  characterCode: number,
+  changeType: "buff" | "nerf" | "adjustment",
+  targetName: string,
+  rawChangeText: string,
+  weaponCodes?: number[]
+): BundledPatchChange {
+  return {
+    ...patch12_3Change(characterCode, changeType, targetName, rawChangeText, weaponCodes),
+    patch_version: "12.7"
+  };
+}
+
 /**
  * 공식 패치노트의 일반 모드 실험체 밸런스 변경입니다.
  * 코발트 프로토콜 전용 보정과 무기·방어구를 통한 간접 변경은 포함하지 않습니다.
  */
 export const BUNDLED_PATCH_CHANGES: BundledPatchChange[] = [
+  // 2026-10-29 12.7 일반 모드 실험체 밸런스 변경
+  patch12_7Change(34, "buff", "스냅샷(Q)", "피해 스킬 증폭 계수 80% → 85%"),
+  patch12_7Change(69, "adjustment", "뿅! 망치(W) / 에어 호른! 건(E)", "이동 속도 증가 12/14/16/18/20%(+스킬 증폭의 2.5%) → 7/9/11/13/15%(+스킬 증폭의 3.5%) · 보호막량 50/65/80/95/110(+레니 레벨*3)(+스킬 증폭의 25%) → 50/65/80/95/110(+레니 레벨*2)(+스킬 증폭의 30%)"),
+  patch12_7Change(90, "nerf", "화려한 낭만 / 찬란한 낭만(Q)", "찬란한 낭만(EQ) 피해 스킬 증폭 계수 80% → 75%"),
+  patch12_7Change(31, "nerf", "기본 체력", "기본 체력 930 → 900"),
+  patch12_7Change(53, "nerf", "전투 교범(Q)", "피해 추가 체력 계수 18% → 16%"),
+  patch12_7Change(64, "buff", "몽환 나비(P)", "기본 보호막량 30/60/90 → 40/75/110"),
+  patch12_7Change(25, "buff", "기본 공격력", "기본 공격력 37 → 40"),
+  patch12_7Change(84, "nerf", "이중 참격 / 이중 휩쓸기(Q)", "이중 참격(쌍검 Q) 2타 기본 피해 20/50/80/110/140 → 10/40/70/100/130, 추가 공격력 계수 90/100/110/120/130% → 80/90/100/110/120%"),
+  patch12_7Change(82, "buff", "무진검결(W)", "기절 지속 시간 1초 → 1.2초"),
+  patch12_7Change(24, "nerf", "방망이 무기 숙련도", "레벨당 스킬 증폭 4.6% → 4.5%", [3]),
+  patch12_7Change(66, "buff", "유물 탐구(P)", "체력 회복 스킬 증폭 계수 10% → 12%"),
+  patch12_7Change(66, "nerf", "잠들어있는 힘(R)", "님루드의 문(RE) 지속 시간 5초 → 4초"),
+  patch12_7Change(67, "buff", "워프 슬래시(E)", "기본 피해 70/85/100/115/130 → 70/95/120/145/170"),
+  patch12_7Change(2, "buff", "돌격 소총 무기 숙련도", "레벨당 기본 공격 증폭 1.4% → 1.5%", [10]),
+  patch12_7Change(55, "buff", "헬기호출(R)", "자신에게 사용 시 보호막 잃은 체력 계수 20% → 25%, 아군에게 사용 시 기본 보호막량 100/200/300 → 150/250/350"),
+  patch12_7Change(50, "nerf", "레벨당 방어력", "방어력 성장 3.3 → 3.2"),
+  patch12_7Change(63, "nerf", "레벨당 체력", "체력 성장 91 → 88"),
+  patch12_7Change(30, "buff", "자~ 집중!(W)", "최소 도발 지속 시간 0.4/0.5/0.6/0.7/0.8초 → 0.5/0.6/0.7/0.8/0.9초, 최대 도발 지속 시간 0.8/1/1.2/1.4/1.6초 → 1/1.2/1.4/1.6/1.8초"),
+  patch12_7Change(70, "buff", "제비걸음(W)", "공격 속도 증가 20/25/30/35/40% → 25/30/35/40/45%"),
+  patch12_7Change(72, "nerf", "저격총 무기 숙련도", "레벨당 기본 공격 증폭 2% → 1.9%", [11]),
+  patch12_7Change(89, "buff", "스윕 킥 / 백플립(W)", "백플립(마탄 W) 피해 스킬 증폭 계수 85% → 90%"),
+  patch12_7Change(89, "buff", "컴뱃 롤 / 퀵 스텝(E)", "컴뱃 롤 적 실험체 적중 시 쿨다운 감소 20% → 25%"),
+  patch12_7Change(60, "nerf", "암기 무기 숙련도", "레벨당 스킬 증폭 4.5% → 4.4%", [6]),
+  patch12_7Change(3, "nerf", "창 무기 숙련도", "레벨당 스킬 증폭 5% → 4.8%", [19]),
+  patch12_7Change(58, "buff", "40mm 유탄(Q)", "엑셀러레이션 로켓(RQ) 기본 피해 80/110/140/170/200 → 100/130/160/190/220"),
+  patch12_7Change(83, "nerf", "레벨당 체력", "체력 성장 78 → 75"),
+  patch12_7Change(7, "buff", "발 밟기(Q) / 핵펀치(R)", "피해 추가 공격력 계수 60% → 90% · 최소 피해 추가 공격력 계수 35% → 50%, 최대 피해 추가 공격력 계수 105% → 150%"),
+  patch12_7Change(78, "buff", "거합일섬(W) - 일섬(W2)", "에어본 지속 시간 0.5초 → 0.6초"),
   // 2026-10-15 12.6 일반 모드 실험체 밸런스 변경
   patch12_6Change(6, "buff", "황소의 눈(Q)", "스킬 증폭 계수: 최소 65% → 70%, 최대 130% → 140%"),
   patch12_6Change(74, "buff", "수금(W) / 추심(E)", "보호막 공격력 계수 55% → 65% · 피해 공격력 계수 85% → 95%"),
@@ -376,6 +419,7 @@ export function patchChangeLabel(type: PatchChange["change_type"]) {
 }
 
 export function patchSourceUrl(patchVersion: string) {
+  if (patchVersion === "12.7") return PATCH_12_7_SOURCE_URL;
   if (patchVersion === "12.6") return PATCH_12_6_SOURCE_URL;
   if (patchVersion === "12.5") return PATCH_12_5_SOURCE_URL;
   if (patchVersion === "12.4") return PATCH_12_4_SOURCE_URL;

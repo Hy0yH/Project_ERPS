@@ -1,21 +1,27 @@
 import { ER_TARGET_PATCH } from "@/lib/env";
 import type { PatchVersion } from "@/lib/types";
 
-export const CURRENT_PATCH_KEY = "12.6.0";
+export const CURRENT_PATCH_KEY = "12.7.0";
 
 // 공식 업데이트 점검 시작 시각. 첫 표본이 늦게 수집되어도 패치 초반 경기를 포함합니다.
 const PATCH_STARTS: Record<string, string> = {
   "12.4.0": "2026-09-17T02:00:00.000Z",
   "12.5.0": "2026-10-01T02:00:00.000Z",
-  "12.6.0": "2026-10-15T02:00:00.000Z"
+  "12.6.0": "2026-10-15T02:00:00.000Z",
+  "12.7.0": "2026-10-29T02:00:00.000Z"
 };
 
-export function getTargetPatchKey(configuredValue = ER_TARGET_PATCH) {
+export function getTargetPatchKey(configuredValue = ER_TARGET_PATCH, now = Date.now()) {
+  // 패치노트를 미리 반영해도 공식 점검 전에는 이전 패치 통계를 유지합니다.
+  const currentPatchKey = Object.entries(PATCH_STARTS)
+    .filter(([, startedAt]) => Date.parse(startedAt) <= now)
+    .sort(([left], [right]) => comparePatchParts(parsePatchKey(right)!, parsePatchKey(left)!))[0]?.[0]
+    ?? CURRENT_PATCH_KEY;
   const configured = parsePatchKey(configuredValue);
-  const current = parsePatchKey(CURRENT_PATCH_KEY)!;
+  const current = parsePatchKey(currentPatchKey)!;
   return configured && comparePatchParts(configured, current) > 0
     ? formatPatchKey(configured.version_season, configured.version_major, configured.version_minor)
-    : CURRENT_PATCH_KEY;
+    : currentPatchKey;
 }
 
 export async function getActivePatch(supabase: any): Promise<PatchVersion | null> {

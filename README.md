@@ -12,7 +12,7 @@
 
 ERPS의 최초 수집 기준 패치는 **12.1.0**입니다. 2026-08-19에 추가된 [초기 수집 설정](https://github.com/Hy0yH/Project_ERPS/blob/884390d068ec1462e359a8621d2361221dd4726d/.env.example)에 `ER_TARGET_PATCH=12.1.0`이 기록되어 있습니다. 2026-10-05 DB 확인 기준으로 현재 시즌의 가장 오래된 저장 경기도 12.1.0이며, 경기 시작 시각은 2026-08-13 15:03 KST입니다. 이 시각은 보관된 경기의 시작 시각이며, 수집 작업을 처음 실행한 시각을 의미하지 않습니다.
 
-공식 버프·너프 변경 이력은 **12.2부터** 누적하고 있으며, 현재 사이트의 기준 패치는 **12.6.0**입니다. 아래 날짜는 게임 패치 출시일이 아닌 프로젝트에 변경을 반영한 날짜(KST)입니다.
+공식 버프·너프 변경 이력은 **12.2부터** 누적하고 있으며, 코드에 반영된 최신 패치는 **12.7.0**입니다. 통계·수집 기준은 공식 점검 시작 시각에 전환되므로 2026-10-29 11:00 KST 전에는 12.6.0을 유지합니다. 아래 날짜는 게임 패치 출시일이 아닌 프로젝트에 변경을 반영한 날짜(KST)입니다.
 
 | 프로젝트 반영일 | 게임 패치 | 반영 내용 | Git 기록 |
 | --- | --- | --- | --- |
@@ -23,8 +23,9 @@ ERPS의 최초 수집 기준 패치는 **12.1.0**입니다. 2026-08-19에 추가
 | 2026-09-18 | 12.4 | 실험체 밸런스 변경 반영, 예약 수집 기준 전환 | [b1e75b3](https://github.com/Hy0yH/Project_ERPS/commit/b1e75b33a1d9a132d624aac6882177984e2deb05) |
 | 2026-10-05 | 12.5 | 실험체 밸런스 변경 반영, 대문·수집·집계 기준 전환 및 기존 데이터 보존 | [0adaaf3](https://github.com/Hy0yH/Project_ERPS/commit/0adaaf3a791d9d46cfe5d154cb2a266e312eff0e) |
 | 2026-10-18 | 12.6 | 실험체 28종 밸런스 변경 32건 반영, 10월 15일 이후 12.6 경기 소급 수집·집계 및 예약 수집 기준 전환 | 이번 업데이트 |
+| 2026-10-29 | 12.7 | 실험체 26종 밸런스 변경 28건 추가, 레니 복합 조정·아르다 상향/하향 구분, 공식 점검 시작 시 수집·집계 기준 자동 전환 | [CHG-018](docs/change-log.md#chg-018) |
 
-누적 변경 내역의 공식 출처: [12.2](https://playeternalreturn.com/posts/news/3783?hl=ko-KR), [12.2b](https://playeternalreturn.com/posts/news/3801?hl=ko-KR), [12.3](https://playeternalreturn.com/posts/news/3813?hl=ko-KR), [12.4](https://playeternalreturn.com/posts/news/3838?hl=ko-KR), [12.5](https://playeternalreturn.com/posts/news/3867?hl=ko-KR), [12.6](https://playeternalreturn.com/posts/news/3898?hl=ko-KR).
+누적 변경 내역의 공식 출처: [12.2](https://playeternalreturn.com/posts/news/3783?hl=ko-KR), [12.2b](https://playeternalreturn.com/posts/news/3801?hl=ko-KR), [12.3](https://playeternalreturn.com/posts/news/3813?hl=ko-KR), [12.4](https://playeternalreturn.com/posts/news/3838?hl=ko-KR), [12.5](https://playeternalreturn.com/posts/news/3867?hl=ko-KR), [12.6](https://playeternalreturn.com/posts/news/3898?hl=ko-KR), [12.7](https://playeternalreturn.com/posts/news/3924?hl=ko-KR).
 
 ## 주요 기능
 
@@ -95,7 +96,7 @@ Copy-Item .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | 서버의 DB 읽기·쓰기 |
 | `ER_SEASON_ID` | 수집할 공식 API 랭크 시즌 ID |
-| `ER_TARGET_PATCH` | 선택 사항. 코드에 반영된 현재 패치(12.6.0)와 DB의 최신 수집 패치를 기준으로 자동 전환하며, 이전 패치로 남은 설정은 현재 패치로 올립니다. |
+| `ER_TARGET_PATCH` | 선택 사항. 코드에 반영된 패치 중 공식 점검 시작을 지난 최신 패치와 DB의 최신 수집 패치를 기준으로 자동 전환하며, 이전 패치로 남은 설정은 현재 패치로 올립니다. 명시적으로 더 새 패치를 지정하면 그 설정을 우선합니다. |
 | `ADMIN_TOKEN` | 패치노트 import 및 내부 통계 조회 보호 |
 | `CRON_SECRET` | 수집·스냅샷 API 보호 |
 

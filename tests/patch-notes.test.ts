@@ -31,6 +31,47 @@ describe("patch note parser", () => {
 });
 
 describe("bundled patch changes", () => {
+  it("covers all 26 characters in the official 12.7 general-mode balance section", () => {
+    const changes = BUNDLED_PATCH_CHANGES.filter((change) => change.patch_version === "12.7");
+    expect([...new Set(changes.map((change) => change.character_code))].sort((a, b) => a - b)).toEqual([
+      2, 3, 7, 24, 25, 30, 31, 34, 50, 53, 55, 58, 60,
+      63, 64, 66, 67, 69, 70, 72, 78, 82, 83, 84, 89, 90
+    ]);
+    expect(changes).toHaveLength(28);
+    expect(changes.filter((change) => change.change_type === "buff")).toHaveLength(15);
+    expect(changes.filter((change) => change.change_type === "nerf")).toHaveLength(12);
+    expect(changes.filter((change) => change.change_type === "adjustment")).toHaveLength(1);
+    expect(patchSourceUrl("12.7")).toBe("https://playeternalreturn.com/posts/news/3924?hl=ko-KR");
+  });
+
+  it("limits 12.7 mastery changes to the affected weapon", () => {
+    const changesFor = (character: number, weapon: number) => getBundledPatchChanges(character, weapon)
+      .filter((change) => change.patch_version === "12.7");
+    for (const [character, affected, unaffected, type] of [
+      [2, 10, 9, "buff"], [24, 3, 21, "nerf"], [3, 19, 21, "nerf"],
+      [60, 6, 5, "nerf"], [72, 11, 9, "nerf"]
+    ] as const) {
+      expect(changesFor(character, affected).map((change) => change.change_type)).toEqual([type]);
+      expect(changesFor(character, unaffected)).toEqual([]);
+    }
+    // 현우는 글러브 보완이 목적이지만 Q/R 자체의 변경이므로 톤파에도 적용됩니다.
+    expect(changesFor(7, 1)).toEqual(changesFor(7, 2));
+    expect(changesFor(7, 2)).toHaveLength(1);
+  });
+
+  it("preserves Leni's build-dependent adjustment and Arda's opposite changes in 12.7", () => {
+    const leni = getBundledPatchChanges(69).find((change) => change.patch_version === "12.7")!;
+    expect(leni.change_type).toBe("adjustment");
+    expect(leni.impact_score).toBe(0);
+    expect(patchChangeSections(leni).map((section) => section.target)).toEqual(["뿅! 망치(W)", "에어 호른! 건(E)"]);
+    expect(leni.raw_change_text).toContain("12/14/16/18/20%(+스킬 증폭의 2.5%) → 7/9/11/13/15%(+스킬 증폭의 3.5%)");
+    expect(leni.raw_change_text).toContain("레니 레벨*2");
+    const arda = getBundledPatchChanges(66).filter((change) => change.patch_version === "12.7");
+    expect(arda.map((change) => [change.change_type, change.impact_score])).toEqual([["buff", 2], ["nerf", -2]]);
+    expect(arda[0].raw_change_text).toContain("10% → 12%");
+    expect(arda[1].raw_change_text).toContain("5초 → 4초");
+  });
+
   it("covers all 28 characters in the official 12.6 general-mode balance section", () => {
     const changes = BUNDLED_PATCH_CHANGES.filter((change) => change.patch_version === "12.6");
     expect([...new Set(changes.map((change) => change.character_code))].sort((a, b) => a - b)).toEqual([
