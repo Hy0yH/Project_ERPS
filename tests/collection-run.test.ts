@@ -27,7 +27,28 @@ const game = {
 
 // Small storage fixture exercises discovery -> persistence -> claim -> completion in one run.
 function database() {
-  return { from: (table: string) => {
+  return { rpc: async (name: string, args: any) => {
+    tables.ingestion_runs ??= [];
+    if (name === "begin_ingestion_run") {
+      const row = { id: tables.ingestion_runs.length + 1, status: "running", job_name: args.p_job_name, lease_token: args.p_lease_token };
+      tables.ingestion_runs.push(row); return { data: row.id, error: null };
+    }
+    if (name === "finish_ingestion_run") {
+      const row = tables.ingestion_runs.find((row) => row.id === args.p_run_id);
+      Object.assign(row, { status: args.p_status, saved_matches: args.p_saved_matches, error_message: args.p_diagnostic });
+      return { data: true, error: null };
+    }
+    if (name === "save_ingested_game") {
+      tables.matches ??= []; tables.match_players ??= [];
+      const match = { ...args.p_match };
+      if (args.p_complete) Object.assign(match, { detail_collected_at: new Date().toISOString(), detail_player_count: args.p_players.length,
+        detail_analysis_version: Math.min(...args.p_players.map((row: any) => row.analysis_data_version)), detail_build_version: 2 });
+      tables.matches = tables.matches.filter((row) => row.game_id !== match.game_id).concat(match);
+      tables.match_players = tables.match_players.filter((row) => row.game_id !== match.game_id).concat(args.p_players);
+      return { error: null };
+    }
+    throw new Error(`Unexpected RPC: ${name}`);
+  }, from: (table: string) => {
     tables[table] ??= [];
     const predicates: ((row: any) => boolean)[] = [];
     let operation: (() => any[]) | undefined;
@@ -40,6 +61,8 @@ function database() {
     };
     const query: any = {
       select: () => query, order: () => query, or: () => query,
+      not: (key: string) => { predicates.push((row) => row[key] !== null && row[key] !== undefined); return query; },
+      gt: (key: string, value: any) => { predicates.push((row) => row[key] > value); return query; },
       eq: (key: string, value: unknown) => { predicates.push((row) => row[key] === value); return query; },
       in: (key: string, values: unknown[]) => { predicates.push((row) => values.includes(row[key])); return query; },
       gte: (key: string, value: any) => { predicates.push((row) => row[key] >= value); return query; },
@@ -78,6 +101,7 @@ function database() {
 
 describe("ranker collection pipeline", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.stubEnv("ER_SEASON_ID", "41");
     for (const key of Object.keys(tables)) delete tables[key];
     vi.mocked(getSupabaseAdmin).mockReturnValue(database() as any);
@@ -108,7 +132,7 @@ describe("ranker collection pipeline", () => {
   });
 
   it("skips an unranked queued match without deleting it or including it in meta", async () => {
-    tables.match_ingestion_queue = [{ game_id: 100, status: "pending", attempts: 0, game_started_at: null }];
+    tables.match_ingestion_queue = [{ game_id: 100, status: "pending", attempts: 0, game_started_at: null, next_retry_at: "2000-01-01" }];
     vi.mocked(fetchUserGamesPageByUserId).mockResolvedValue({ userGames: [] });
     vi.mocked(fetchGame).mockResolvedValue({ gamePlayers: [{ ...game, matchingMode: 2 }] });
     const result = await collectRankerMatches();
@@ -141,7 +165,7 @@ describe("ranker collection pipeline", () => {
   it("can enqueue the same game from another ranker after a queue write fails", async () => {
     const storage = database();
     let failOnce = true;
-    vi.mocked(getSupabaseAdmin).mockReturnValue({ from: (table: string) => {
+    vi.mocked(getSupabaseAdmin).mockReturnValue({ rpc: storage.rpc, from: (table: string) => {
       const query = storage.from(table);
       if (table === "match_ingestion_queue") {
         const upsert = query.upsert;
@@ -157,5 +181,28 @@ describe("ranker collection pipeline", () => {
     expect(result.failedRankers).toBe(1);
     expect(result.savedMatches).toBe(1);
     expect(tables.match_ingestion_queue[0].status).toBe("completed");
+  });
+
+  it("continues retrying transient failures beyond the old four-attempt cutoff", async () => {
+    tables.match_ingestion_queue = [{ game_id: 100, status: "failed", attempts: 4, game_started_at: null, next_retry_at: "2000-01-01" }];
+    const result = await collectRankerMatches();
+    expect(result.savedMatches).toBe(1);
+    expect(tables.match_ingestion_queue[0]).toMatchObject({ status: "completed", attempts: 5 });
+  });
+
+  it("retains cooling-down failures in pending counts without making a request", async () => {
+    tables.match_ingestion_queue = [{ game_id: 100, status: "failed", attempts: 5, game_started_at: null, next_retry_at: "2999-01-01" }];
+    vi.mocked(fetchUserGamesPageByUserId).mockResolvedValue({ userGames: [] });
+    const result = await collectRankerMatches();
+    expect(fetchGame).not.toHaveBeenCalled();
+    expect(result.pendingMatches).toBe(1);
+  });
+
+  it("records total discovery failure as failed and mixed outcomes as partial success", async () => {
+    vi.mocked(fetchUserGamesPageByUserId).mockRejectedValue(new Error("upstream outage"));
+    const result = await collectRankerMatches();
+    expect(result.status).toBe("failed");
+    expect(tables.ingestion_runs[0].status).toBe("failed");
+    expect(tables.ingestion_runs[0].error_message).toMatchObject({ code: "COLLECTION_FAILED", failedRankers: 1 });
   });
 });

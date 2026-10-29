@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   if (unauthorized) return unauthorized;
   try {
     const data = await collectRankerMatches();
-    return NextResponse.json({ data });
+    return NextResponse.json({ data }, { status: data.status === "failed" ? 503 : 200 });
   } catch (error) {
     if (error instanceof CollectionBusyError) {
       return NextResponse.json({ error: error.message }, { status: 409 });

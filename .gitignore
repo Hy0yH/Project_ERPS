@@ -4,6 +4,7 @@ node_modules/
 .pnpm-store/
 .tools/
 .scheduler/
+supabase/.temp/
 .env
 .env.local
 .vercel/

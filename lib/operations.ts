@@ -6,18 +6,19 @@ export type OperationsStatus = {
   checkedAt: string; database: "ready" | "unavailable" | "unconfigured"; patch: string | null;
   snapshots: { characters: string | null; compositions: string | null; benchmarks: string | null };
   stale: boolean; inconsistent: boolean;
-  queue: { pending: number | null; processing: number | null; failed: number | null };
+  queue: { pending: number | null; processing: number | null; failed: number | null; deadLetter: number | null };
   runs: Array<{ id: number; job: string; status: string; savedMatches: number; startedAt: string; finishedAt: string | null; hasWarnings: boolean;
+    heartbeatAt: string | null; leaseExpired: boolean;
     diagnostic: { stage: string; code: string; rows: number; batch: number } | null }>;
 };
 export function snapshotDiagnostic(value: unknown): OperationsStatus["runs"][number]["diagnostic"] {
   if (typeof value !== "string") return null;
   try {
     const parsed = JSON.parse(value);
-    if (!parsed || !/^(starting|read_patch|read_players|calculate|write:[a-z_]+)$/.test(parsed.stage) ||
-      !/^[A-Z0-9_]{1,30}$/.test(parsed.code) || !Number.isSafeInteger(parsed.rows) || parsed.rows < 0 ||
-      !Number.isSafeInteger(parsed.batch) || parsed.batch < 0) return null;
-    return { stage: parsed.stage, code: parsed.code, rows: parsed.rows, batch: parsed.batch };
+    if (!parsed || !/^(starting|read_patch|read_players|calculate|collect_routes|publish|collection|discovery|process_queue|sync_characters|lease|write:[a-z_]+)$/.test(parsed.stage) ||
+      !/^[A-Z0-9_]{1,30}$/.test(parsed.code) || !Number.isSafeInteger(parsed.rows ?? 0) || (parsed.rows ?? 0) < 0 ||
+      !Number.isSafeInteger(parsed.batch ?? 0) || (parsed.batch ?? 0) < 0) return null;
+    return { stage: parsed.stage, code: parsed.code, rows: parsed.rows ?? 0, batch: parsed.batch ?? 0 };
   } catch { return null; }
 }
 const cache = createAsyncCache<OperationsStatus>(30_000, 1);
@@ -57,7 +58,7 @@ export function getOperationsStatus(): Promise<OperationsStatus> {
   return cache.get("status", async () => {
     const initial: OperationsStatus = { checkedAt: new Date().toISOString(), database: "unconfigured", patch: null,
       snapshots: { characters: null, compositions: null, benchmarks: null }, stale: true, inconsistent: true,
-      queue: { pending: null, processing: null, failed: null }, runs: [] };
+      queue: { pending: null, processing: null, failed: null, deadLetter: null }, runs: [] };
     if (!isSupabaseConfigured()) return initial;
     const db = getSupabaseAdmin();
     try {
@@ -75,17 +76,20 @@ export function getOperationsStatus(): Promise<OperationsStatus> {
         return data?.period_end ? String(data.period_end) : null;
       };
       const count = async (status: string) => { const result = await db.from("match_ingestion_queue").select("game_id", { count: "exact", head: true }).eq("status", status); return result.error ? null : result.count ?? 0; };
-      const [characters, compositions, benchmarks, pending, processing, failed, runs] = await Promise.all([
+      const [characters, compositions, benchmarks, pending, processing, failed, deadLetter, runs] = await Promise.all([
         snapshot("character_stats_snapshot"), snapshot("team_comp_stats"), snapshot("player_metric_benchmarks"),
-        count("pending"), count("processing"), count("failed"),
-        db.from("ingestion_runs").select("id,job_name,status,saved_matches,started_at,finished_at,error_message").order("started_at", { ascending: false }).limit(10)
+        count("pending"), count("processing"), count("failed"), count("dead_letter"),
+        db.from("ingestion_runs").select("id,job_name,status,saved_matches,started_at,finished_at,heartbeat_at,error_message").order("started_at", { ascending: false }).limit(10)
       ]);
+      if (runs.error) throw runs.error;
       const snapshots = { characters, compositions, benchmarks };
       return { ...initial, database: "ready", patch: patch?.patch_key ?? null, snapshots, ...summarizeFreshness(snapshots),
-        queue: { pending, processing, failed }, runs: (runs.data ?? []).map((run) => ({ id: Number(run.id), job: String(run.job_name),
+        queue: { pending, processing, failed, deadLetter }, runs: (runs.data ?? []).map((run) => ({ id: Number(run.id), job: String(run.job_name),
           status: String(run.status), savedMatches: Number(run.saved_matches), startedAt: String(run.started_at),
           finishedAt: run.finished_at ? String(run.finished_at) : null, hasWarnings: Boolean(run.error_message),
-          diagnostic: run.job_name === "build-snapshots" ? snapshotDiagnostic(run.error_message) : null })) };
+          heartbeatAt: run.heartbeat_at ? String(run.heartbeat_at) : null,
+          leaseExpired: run.status === "running" && Date.now() - Date.parse(String(run.heartbeat_at ?? run.started_at)) > 10 * 60_000,
+          diagnostic: snapshotDiagnostic(run.error_message) })) };
     } catch { return { ...initial, database: "unavailable" }; }
   });
 }

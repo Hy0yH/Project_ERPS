@@ -1,8 +1,10 @@
 import { sourceMetrics, spentCredits } from "@/lib/player-analysis-source";
+import { runIngestionJob, IngestionBusyError, ingestionErrorCode, type RunProgress, type RunStatus } from "@/lib/ingestion-run";
+import { queueFailure } from "@/lib/ingestion-retry";
 import { matchDetailSource } from "@/lib/match-details";
 import { BUILD_DETAIL_VERSION, buildUsageStats } from "@/lib/build-stats";
 import { collectRouteDefinitions, syncBuildCatalog } from "@/lib/build-data";
-import { runSnapshotBuild, writeSnapshotBatches, type SnapshotProgress } from "@/lib/snapshot-build";
+import { runSnapshotBuild, writeSnapshotBatches, publishSnapshotBuild, type SnapshotProgress } from "@/lib/snapshot-build";
 import {
   ER_ANALYSIS_PEER_GAME_LIMIT,
   ER_ANALYSIS_PLAYER_MATCH_LIMIT,
@@ -65,6 +67,7 @@ type PlayerIdentity = {
 type SaveGameOptions = {
   identity?: PlayerIdentity;
   patch?: PatchVersion | null;
+  completeDetail?: boolean;
 };
 
 type CandidateGame = {
@@ -227,6 +230,7 @@ export async function collectRankerMatches() {
   if (rankerCollectionRunning) throw new CollectionBusyError();
   rankerCollectionRunning = true;
   try { return await runRankerCollection(); }
+  catch (error) { if (error instanceof IngestionBusyError) throw new CollectionBusyError(); throw error; }
   finally { rankerCollectionRunning = false; }
 }
 
@@ -237,36 +241,32 @@ export class CollectionBusyError extends Error {
 
 async function runRankerCollection() {
   const supabase = getSupabaseAdmin();
-  const seasonId = process.env.ER_SEASON_ID;
-  if (!seasonId) throw new Error("ER_SEASON_ID is required");
+  const seasonId = Number(process.env.ER_SEASON_ID);
+  if (!Number.isSafeInteger(seasonId) || seasonId <= 0) throw new Error("ER_SEASON_ID must be a positive integer");
 
-  const run = await supabase
-    .from("ingestion_runs")
-    .insert({ job_name: "collect-rankers", status: "running" })
-    .select("id")
-    .single();
-  if (run.error) throw run.error;
-
-  let savedMatches = 0;
-  const startedAt = Date.now();
-  const deadline = startedAt + Math.max(1, ER_COLLECTION_TIME_BUDGET_MINUTES) * 60 * 1000;
-  const processedIds = new Set<number>();
-  try {
+  return runIngestionJob(supabase, "collect-rankers", async ({ id: runId, progress }) => {
+    let savedMatches = 0;
+    const startedAt = Date.now();
+    const deadline = startedAt + ER_COLLECTION_TIME_BUDGET_MINUTES * 60 * 1000;
+    const processedIds = new Set<number>();
+    progress("sync_characters");
     await syncCharacters();
     const activePatch = await getActivePatch(supabase);
     const buildCatalog = activePatch ? await syncBuildCatalog(activePatch.patch_key).catch(() => ({ error: "CATALOG_SYNC_FAILED" })) : null;
+    progress("process_queue");
     await resetStaleQueueItems(supabase);
     const detailBackfill = activePatch ? await enqueueBuildDetailBackfill(supabase, activePatch, ER_COLLECTION_MAX_NEW_MATCHES) : 0;
 
+    progress("process_queue");
     const queueResult = await processQueuedMatches(
       supabase,
       activePatch,
       ER_COLLECTION_MAX_NEW_MATCHES,
       deadline,
-      processedIds
+      processedIds, runId, progress
     );
     savedMatches = queueResult.savedMatches;
-
+    progress("discovery", savedMatches);
     const rankers = await fetchTopRankers(seasonId);
     if (!rankers.length) {
       throw new Error(
@@ -287,6 +287,8 @@ async function runRankerCollection() {
     let attemptedUsers = 0;
     let skippedMissingIdentifier = 0;
     let failedRankers = 0;
+    let successfulRankers = 0;
+    const discoveryErrors: Record<string, number> = {};
     let discoveryTimeBudgetReached = false;
     let resumedRankers = 0;
     let discoveryPages = 0;
@@ -295,6 +297,7 @@ async function runRankerCollection() {
     const existingGameIds = new Set<number>();
 
     for (const ranker of rankersForDiscovery) {
+      progress("discovery", savedMatches);
       if (Date.now() >= discoveryDeadline) {
         discoveryTimeBudgetReached = true;
         break;
@@ -370,14 +373,17 @@ async function runRankerCollection() {
           checkpoints[resolved.userId] = discovered.checkpoint;
           await saveCollectionState(stateFile, checkpoints);
         }
-      } catch {
+        successfulRankers += 1;
+      } catch (error) {
         failedRankers += 1;
+        const code = ingestionErrorCode(error);
+        discoveryErrors[code] = (discoveryErrors[code] ?? 0) + 1;
       }
     }
 
     // 이번 실행에서 찾은 경기도 남은 처리 예산으로 즉시 저장합니다.
     const newQueueResult = await processQueuedMatches(supabase, activePatch,
-      Math.max(0, ER_COLLECTION_MAX_NEW_MATCHES - processedIds.size), deadline, processedIds);
+      Math.max(0, ER_COLLECTION_MAX_NEW_MATCHES - processedIds.size), deadline, processedIds, runId, progress, savedMatches);
     savedMatches += newQueueResult.savedMatches;
     const failedMatches = queueResult.failedMatches + newQueueResult.failedMatches;
     const collectionTimeBudgetReached = Date.now() >= deadline;
@@ -389,55 +395,30 @@ async function runRankerCollection() {
         ? `Skipped ${skippedMissingIdentifier} rankers without a usable identifier.`
         : "",
       failedRankers ? `${failedRankers} ranker history requests failed.` : "",
-      failedMatches ? `${failedMatches} queued matches failed and will be retried.` : "",
+      failedMatches ? `${failedMatches} queued matches failed; transient failures are scheduled for retry and permanent failures require review.` : "",
       discoveryTimeBudgetReached
         ? `Ranker discovery stopped at the ${ER_DISCOVERY_TIME_BUDGET_MINUTES}-minute budget and will resume next run.`
         : "",
       collectionTimeBudgetReached ? "Collection time budget reached; remaining work is preserved for the next run." : ""
     ].filter(Boolean).join(" ") || null;
 
-    await supabase
-      .from("ingestion_runs")
-      .update({
-        status: "success",
-        finished_at: new Date().toISOString(),
-        saved_matches: savedMatches,
-        error_message: warnings
-      })
-      .eq("id", run.data.id);
-    return {
-      savedMatches,
-      buildCatalog,
-      detailBackfill,
-      attemptedUsers,
-      skippedMissingIdentifier,
-      failedRankers,
-      failedMatches,
-      skippedExistingMatches,
-      candidateMatches: candidateGameIds.size,
-      queuedMatches: queuedGameIds.size,
-      pendingMatches,
-      cappedNewMatches: pendingMatches,
-      selectedRankers: rankersForDiscovery.length,
-      discoveryTimeBudgetReached,
-      collectionTimeBudgetReached,
-      processedMatches: processedIds.size,
-      skippedUnwantedMatches: queueResult.skippedUnwantedMatches + newQueueResult.skippedUnwantedMatches,
-      resumedRankers,
-      discoveryPages,
-      elapsedSeconds: Math.round((Date.now() - startedAt) / 1000)
+    const allDiscoveryFailed = successfulRankers === 0 && (failedRankers > 0 || skippedMissingIdentifier > 0);
+    const status: RunStatus = savedMatches === 0 && (allDiscoveryFailed || failedMatches > 0) ? "failed"
+      : failedRankers || failedMatches || skippedMissingIdentifier || buildCatalog && "error" in buildCatalog ? "partial_success" : "success";
+    return { status, savedMatches,
+      diagnostic: warnings ? { stage: "collection", code: status === "failed" ? "COLLECTION_FAILED" : "COLLECTION_WARNING",
+        rows: savedMatches, batch: 0, failedRankers, failedMatches, discoveryErrors, warnings } : null,
+      result: {
+        status, savedMatches, buildCatalog, detailBackfill, attemptedUsers, skippedMissingIdentifier,
+        failedRankers, successfulRankers, failedMatches, skippedExistingMatches,
+        candidateMatches: candidateGameIds.size, queuedMatches: queuedGameIds.size, pendingMatches,
+        cappedNewMatches: pendingMatches, selectedRankers: rankersForDiscovery.length,
+        discoveryTimeBudgetReached, collectionTimeBudgetReached, processedMatches: processedIds.size,
+        skippedUnwantedMatches: queueResult.skippedUnwantedMatches + newQueueResult.skippedUnwantedMatches,
+        resumedRankers, discoveryPages, elapsedSeconds: Math.round((Date.now() - startedAt) / 1000)
+      }
     };
-  } catch (error) {
-    await supabase
-      .from("ingestion_runs")
-      .update({
-        status: "failed",
-        finished_at: new Date().toISOString(),
-        error_message: error instanceof Error ? error.message : String(error)
-      })
-      .eq("id", run.data.id);
-    throw error;
-  }
+  });
 }
 
 export async function collectPlayerRecentMatches(
@@ -495,6 +476,7 @@ export async function collectPlayerRecentMatches(
       try {
         const detail = await fetchGame(gameId);
         await saveGame(detail, {
+          completeDetail: true,
           identity: { userId, nickname: trimmedNickname },
           patch: latestPatch
         });
@@ -610,7 +592,7 @@ export async function collectPlayerAnalysisMatches(
     if (!gameId || (await hasCompleteAnalysisGame(supabase, gameId))) continue;
     try {
       const detail = await fetchGame(gameId);
-      await saveGame(detail, { identity, patch: activePatch });
+      await saveGame(detail, { identity, patch: activePatch, completeDetail: true });
       enrichedPeerGames += 1;
     } catch (error) {
       console.error(`Failed to enrich peer game ${gameId} for analysis:`, error);
@@ -812,57 +794,33 @@ function latestCumulativeValue(value: unknown) {
 }
 
 async function hasSavedGamePlayers(supabase: ReturnType<typeof getSupabaseAdmin>, gameId: number) {
-  const { count, error } = await supabase
-    .from("match_players")
-    .select("*", { count: "exact", head: true })
-    .eq("game_id", gameId)
-    .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION)
-    .gte("build_data_version", BUILD_DETAIL_VERSION);
-  if (error) throw error;
-  return Number(count ?? 0) >= 8;
+  return (await findCompleteAnalysisGameIds(supabase, [gameId])).has(gameId);
 }
 
 async function hasCompleteAnalysisGame(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   gameId: number
 ) {
-  const { count, error } = await supabase
-    .from("match_players")
-    .select("*", { count: "exact", head: true })
-    .eq("game_id", gameId)
-    .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION)
-    .gte("build_data_version", BUILD_DETAIL_VERSION);
-  if (error) throw error;
-  return Number(count ?? 0) >= 8;
+  return hasSavedGamePlayers(supabase, gameId);
 }
 
 export async function findCompleteAnalysisGameIds(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   gameIds: number[]
 ) {
-  const playerCounts = new Map<number, number>();
+  const complete = new Set<number>();
   for (let index = 0; index < gameIds.length; index += 500) {
     const batch = gameIds.slice(index, index + 500);
     if (!batch.length) continue;
-    for (let from = 0; ; from += SNAPSHOT_PAGE_SIZE) {
-      const { data, error } = await supabase.from("match_players").select("game_id")
-        .in("game_id", batch).gte("analysis_data_version", PLAYER_ANALYSIS_VERSION)
-        .gte("build_data_version", BUILD_DETAIL_VERSION)
-        .order("game_id", { ascending: true }).order("user_num", { ascending: true })
-        .range(from, from + SNAPSHOT_PAGE_SIZE - 1);
-      if (error) throw error;
-      for (const row of data ?? []) {
-        const gameId = Number(row.game_id);
-        playerCounts.set(gameId, (playerCounts.get(gameId) ?? 0) + 1);
-      }
-      if (!data || data.length < SNAPSHOT_PAGE_SIZE) break;
-    }
+    const { data, error } = await supabase.from("matches").select("game_id")
+      .in("game_id", batch).gt("detail_player_count", 0)
+      .not("detail_collected_at", "is", null)
+      .gte("detail_analysis_version", PLAYER_ANALYSIS_VERSION)
+      .gte("detail_build_version", BUILD_DETAIL_VERSION).limit(500);
+    if (error) throw error;
+    for (const row of data ?? []) complete.add(Number(row.game_id));
   }
-  return new Set(
-    [...playerCounts.entries()]
-      .filter(([, count]) => count >= 8)
-      .map(([gameId]) => gameId)
-  );
+  return complete;
 }
 
 // Old, already-collected current-patch matches also need the newly retained fields.
@@ -871,10 +829,11 @@ export async function enqueueBuildDetailBackfill(
   supabase: ReturnType<typeof getSupabaseAdmin>, patch: PatchVersion, limit = 1000
 ) {
   if (limit <= 0) return 0;
-  let query = supabase.from("matches").select("game_id,started_at,match_players!inner(build_data_version)")
+  let query = supabase.from("matches").select("game_id,started_at")
     .eq("matching_mode", 3).eq("matching_team_mode", 3)
     .eq("version_season", patch.version_season).eq("version_major", patch.version_major).eq("version_minor", patch.version_minor)
-    .gte("started_at", patch.patch_start_at).lt("match_players.build_data_version", BUILD_DETAIL_VERSION)
+    .gte("started_at", patch.patch_start_at)
+    .or(`detail_collected_at.is.null,detail_build_version.lt.${BUILD_DETAIL_VERSION},detail_analysis_version.lt.${PLAYER_ANALYSIS_VERSION}`)
     .order("game_id", { ascending: false });
   if (ER_SEASON_ID) query = query.eq("season_id", ER_SEASON_ID);
   const { data, error } = await query.limit(Math.min(1000, Math.floor(limit)));
@@ -882,7 +841,7 @@ export async function enqueueBuildDetailBackfill(
   const candidates = (data ?? []).map((row) => ({ gameId: Number(row.game_id), gameRow: { startDtm: row.started_at }, sourceUserId: null, sourceNickname: "" }));
   await enqueueCandidateGames(supabase, candidates);
   for (let from = 0; from < candidates.length; from += 200) {
-    const reopened = await supabase.from("match_ingestion_queue").update({ status: "pending", attempts: 0, processed_at: null, last_error: null, updated_at: new Date().toISOString() })
+    const reopened = await supabase.from("match_ingestion_queue").update({ status: "pending", attempts: 0, next_retry_at: new Date().toISOString(), processed_at: null, last_error: null, updated_at: new Date().toISOString() })
       .in("game_id", candidates.slice(from, from + 200).map((row) => row.gameId)).eq("status", "completed");
     if (reopened.error) throw reopened.error;
   }
@@ -947,6 +906,7 @@ async function enqueueCandidateGames(
           : null,
       status: "pending",
       attempts: 0,
+      next_retry_at: new Date().toISOString(),
       last_error: null,
       processed_at: null,
       updated_at: new Date().toISOString()
@@ -985,7 +945,7 @@ async function fetchQueueWork(
     .from("match_ingestion_queue")
     .select("game_id, attempts")
     .in("status", ["pending", "failed"])
-    .lte("attempts", 3)
+    .lte("next_retry_at", new Date().toISOString())
     .order("discovered_at", { ascending: true })
     .limit(limit);
   // 이전 패치의 대기열은 보존하되 새 패치 수집을 지연시키지 않습니다.
@@ -1005,7 +965,10 @@ async function processQueuedMatches(
   activePatch: PatchVersion | null,
   limit: number,
   deadline: number,
-  processedIds: Set<number>
+  processedIds: Set<number>,
+  runId: number,
+  progress?: RunProgress,
+  previouslySaved = 0
 ) {
   if (limit <= 0 || Date.now() >= deadline) return { savedMatches: 0, failedMatches: 0, skippedUnwantedMatches: 0 };
   const queueWork = (await fetchQueueWork(supabase, limit + processedIds.size, activePatch))
@@ -1019,16 +982,18 @@ async function processQueuedMatches(
   let skippedUnwantedMatches = 0;
 
   for (const item of queueWork) {
+    progress?.("process_queue", previouslySaved + savedMatches);
     if (Date.now() >= deadline) break;
     processedIds.add(item.game_id);
+    if (!(await beginQueueItem(supabase, item, runId))) continue;
     if (alreadySavedQueueIds.has(item.game_id)) {
-      await completeQueueItem(supabase, item.game_id);
+      await completeQueueItem(supabase, item.game_id, item.attempts + 1);
       continue;
     }
 
-    if (!(await beginQueueItem(supabase, item))) continue;
     try {
       const detail = await fetchGame(item.game_id);
+      progress?.("process_queue", previouslySaved + savedMatches);
       const players = getRows(detail, "gamePlayers").length ? getRows(detail, "gamePlayers")
         : getRows(detail, "userGames").length ? getRows(detail, "userGames") : getRows(detail, "players");
       const first = players[0];
@@ -1036,17 +1001,18 @@ async function processQueuedMatches(
         throw new Error(`Incomplete or mismatched game detail for ${item.game_id}`);
       }
       if (!isRankedSquad(first) || !isConfiguredSeason(first) || !matchesPatch(first, activePatch)) {
-        await completeQueueItem(supabase, item.game_id);
+        await completeQueueItem(supabase, item.game_id, item.attempts + 1);
         skippedUnwantedMatches += 1;
         continue;
       }
       if (players.length < 8) throw new Error(`Incomplete ranked game detail for ${item.game_id}: ${players.length} players`);
-      await saveGame(detail, { patch: activePatch });
-      await completeQueueItem(supabase, item.game_id);
+      await saveGame(detail, { patch: activePatch, completeDetail: true });
+      await completeQueueItem(supabase, item.game_id, item.attempts + 1);
       savedMatches += 1;
+      progress?.("process_queue", previouslySaved + savedMatches);
     } catch (error) {
       failedMatches += 1;
-      await failQueueItem(supabase, item.game_id, error);
+      await failQueueItem(supabase, item, error);
     }
   }
 
@@ -1055,13 +1021,15 @@ async function processQueuedMatches(
 
 async function beginQueueItem(
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  item: QueueWorkItem
+  item: QueueWorkItem,
+  runId: number
 ) {
   const { data, error } = await supabase
     .from("match_ingestion_queue")
     .update({
       status: "processing",
       attempts: item.attempts + 1,
+      claimed_run_id: runId,
       updated_at: new Date().toISOString(),
       last_error: null
     })
@@ -1076,34 +1044,32 @@ async function beginQueueItem(
 
 async function completeQueueItem(
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  gameId: number
+  gameId: number,
+  attempts: number
 ) {
   const now = new Date().toISOString();
   const { error } = await supabase
     .from("match_ingestion_queue")
     .update({
       status: "completed",
+      claimed_run_id: null,
       processed_at: now,
       updated_at: now,
       last_error: null
     })
-    .eq("game_id", gameId);
+    .eq("game_id", gameId).eq("status", "processing").eq("attempts", attempts);
   if (error) throw error;
 }
 
 async function failQueueItem(
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  gameId: number,
+  item: QueueWorkItem,
   errorValue: unknown
 ) {
   const { error } = await supabase
     .from("match_ingestion_queue")
-    .update({
-      status: "failed",
-      updated_at: new Date().toISOString(),
-      last_error: (errorValue instanceof Error ? errorValue.message : String(errorValue)).slice(0, 1000)
-    })
-    .eq("game_id", gameId);
+    .update({ ...queueFailure(errorValue, item.attempts + 1), claimed_run_id: null })
+    .eq("game_id", item.game_id).eq("status", "processing").eq("attempts", item.attempts + 1);
   if (error) throw error;
 }
 
@@ -1114,8 +1080,7 @@ async function countPendingQueueItems(
   let query = supabase
     .from("match_ingestion_queue")
     .select("*", { count: "exact", head: true })
-    .in("status", ["pending", "failed"])
-    .lte("attempts", 3);
+    .in("status", ["pending", "failed"]);
   if (activePatch?.patch_start_at) {
     query = query.or(`game_started_at.gte.${activePatch.patch_start_at},game_started_at.is.null`);
   }
@@ -1143,6 +1108,7 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
       ? getRows(payload, "userGames")
       : getRows(payload, "players");
   if (!players.length) throw new Error("Game detail contains no players");
+  if (options.completeDetail && players.length < 8) throw new Error("Incomplete full game detail");
   const first = players[0];
   const gameId = Number(first.gameId ?? payload.gameId ?? payload.game_id);
   if (!Number.isSafeInteger(gameId) || gameId <= 0) throw new Error("Game detail contains an invalid game ID");
@@ -1158,11 +1124,6 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
     server_name: String(first.serverName ?? ""),
     started_at: parseStartedAt(first.startDtm ?? payload.startDtm).toISOString()
   };
-
-  const { error: matchError } = await supabase.from("matches").upsert(match, {
-    onConflict: "game_id"
-  });
-  if (matchError) throw matchError;
 
   const playerRows = players.map((player) => ({
     game_id: gameId,
@@ -1205,30 +1166,31 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
     total_spent_vf_credit: spentCredits(player) ?? 0,
     route_id_of_start: Number(player.routeIdOfStart ?? 0),
     place_of_start: Number(player.placeOfStart ?? 0),
-    analysis_data_version: player.viewContribution !== undefined && player.playTime !== undefined
+    analysis_data_version: player.viewContribution !== undefined && player.viewContribution !== null &&
+      player.playTime !== undefined && player.playTime !== null
       ? PLAYER_ANALYSIS_VERSION
       : player.damageToPlayer !== undefined || player.playTime !== undefined
         ? 1
         : 0
   }));
 
-  const identifiedPlayer = options.identity?.userId
-    ? playerRows.find((player) => player.external_user_id === options.identity?.userId)
-    : null;
-  if (identifiedPlayer && options.identity) {
-    const { error: cleanupError } = await supabase
-      .from("match_players")
-      .delete()
-      .eq("game_id", gameId)
-      .ilike("nickname", options.identity.nickname)
-      .neq("user_num", identifiedPlayer.user_num);
-    if (cleanupError) throw cleanupError;
+  const keys = new Set<number>(), uids = new Set<string>();
+  for (let index = 0; index < playerRows.length; index++) {
+    const row = playerRows[index], raw = players[index];
+    if (Number(raw.gameId ?? raw.game_id ?? gameId) !== gameId || keys.has(row.user_num) ||
+      (row.external_user_id && uids.has(row.external_user_id)) ||
+      !Number.isSafeInteger(row.character_code) || row.character_code <= 0 ||
+      !Number.isSafeInteger(row.game_rank) || row.game_rank <= 0 ||
+      !Number.isSafeInteger(row.team_number) || row.team_number <= 0) {
+      throw new Error("Invalid or duplicate game participant");
+    }
+    keys.add(row.user_num);
+    if (row.external_user_id) uids.add(row.external_user_id);
   }
-
-  const { error: playersError } = await supabase.from("match_players").upsert(playerRows, {
-    onConflict: "game_id,user_num"
+  const { error } = await supabase.rpc("save_ingested_game", {
+    p_match: match, p_players: playerRows, p_complete: options.completeDetail ?? false
   });
-  if (playersError) throw playersError;
+  if (error) throw error;
 }
 
 export function equipmentWithAnalysisMetrics(equipment: unknown, player: Record<string, unknown>) {
@@ -1301,6 +1263,7 @@ async function buildSnapshotData(periodDays: number, progress: SnapshotProgress)
       weaponTypesByCharacter.get(Number(player.character_code)),
       Number(player.best_weapon ?? 0)
     );
+  const periodEnd = new Date().toISOString();
   const characterRows = RANK_SCOPE_OPTIONS.flatMap(({ value: rankScope }) => {
     const scopedPlayers = players
       .filter((player) => matchesRankScope(Number(player.mmr_after), rankScope))
@@ -1310,7 +1273,7 @@ async function buildSnapshotData(periodDays: number, progress: SnapshotProgress)
       rankScope,
       periodDays,
       since,
-      new Date().toISOString(),
+      periodEnd,
       latestPatch
     );
   });
@@ -1320,7 +1283,6 @@ async function buildSnapshotData(periodDays: number, progress: SnapshotProgress)
   const validCompPlayers = compPlayers.filter((player) =>
     isValidWeaponPlayer(player)
   );
-  const periodEnd = new Date().toISOString();
   const tierFilter = latestPatch ? `current_patch:${latestPatch.patch_key}` : "rolling_period";
 
   if (characterRows.length) {
@@ -1344,6 +1306,10 @@ async function buildSnapshotData(periodDays: number, progress: SnapshotProgress)
     : [];
   await writeSnapshotBatches(supabase, "player_metric_benchmarks", benchmarkRows,
     "patch_key,mmr_bucket,segment_key,period_start", progress);
+  await publishSnapshotBuild(supabase, progress,
+    { periodDays, periodStart: since, periodEnd, patchKey: latestPatch?.patch_key ?? null }, {
+      character_stats_snapshot: characterRows.length, team_comp_stats: compRows.length, player_metric_benchmarks: benchmarkRows.length
+    });
   return {
     characters: characterRows.length,
     comps: compRows.length,
@@ -1482,6 +1448,9 @@ export async function fetchSnapshotPlayers(
       .gte("started_at", since)
       .eq("matching_mode", 3)
       .eq("matching_team_mode", 3)
+      .not("detail_collected_at", "is", null)
+      .gte("detail_analysis_version", PLAYER_ANALYSIS_VERSION)
+      .gte("detail_build_version", BUILD_DETAIL_VERSION)
       .gt("game_id", afterGameId)
       .order("game_id", { ascending: true });
     if (ER_SEASON_ID) query = query.eq("season_id", ER_SEASON_ID);
@@ -1646,7 +1615,7 @@ function parseStartedAt(value: unknown) {
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
-  return new Date();
+  return new Date(NaN);
 }
 
 function sumNumericArray(value: unknown) {
@@ -1662,13 +1631,11 @@ export function resolvePlayerUserNum(
   identity?: PlayerIdentity
 ) {
   const nickname = normalizeNickname(player.nickname);
-  if (identity && nickname === normalizeNickname(identity.nickname)) {
-    return stablePositiveHash(`nickname:${nickname}`);
-  }
-  const userNum = getUserNum(player);
-  if (userNum) return userNum;
-  const externalUserId = getUserId(player);
+  const externalUserId = resolvePlayerExternalUserId(player, identity);
   if (externalUserId) return stablePositiveHash(`uid:${externalUserId}`);
+  const userNum = getUserNum(player);
+  if (userNum && Number.isSafeInteger(userNum)) return userNum;
+  if (!nickname) throw new Error("Game participant has no usable identity");
   return stablePositiveHash(`nickname:${nickname}`);
 }
 
@@ -1677,10 +1644,12 @@ function resolvePlayerExternalUserId(
   identity?: PlayerIdentity
 ) {
   const nickname = normalizeNickname(player.nickname);
+  const direct = getUserId(player);
+  if (direct) return direct;
   if (identity?.userId && nickname === normalizeNickname(identity.nickname)) {
     return identity.userId;
   }
-  return getUserId(player);
+  return null;
 }
 
 function normalizeNickname(value: unknown) {
@@ -1688,12 +1657,13 @@ function normalizeNickname(value: unknown) {
 }
 
 function stablePositiveHash(value: string) {
+  // Preserve existing UID-derived keys while unifying personal and scheduled writes.
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
-  return hash >>> 0;
+  return (hash >>> 0) || 1;
 }
 
 function characterWeaponTypes(item: Record<string, unknown>) {
