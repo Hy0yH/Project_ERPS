@@ -1,0 +1,65 @@
+{
+  "dateKst": "2026-10-29",
+  "sourceBaseCommit": "f29f01cce75486455269560e3b4518c33274c810",
+  "branch": "codex/collection-reliability",
+  "tests": {
+    "files": 43,
+    "total": 294,
+    "passed": 294,
+    "failed": 0,
+    "success": true,
+    "startedAtKst": "2026-10-29T21:34:21.549+09:00",
+    "runtime": "v24.16.0",
+    "vitest": "3.2.4",
+    "platform": "win32",
+    "databaseEngine": "@electric-sql/pglite@0.5.13",
+    "databaseTests": 17
+  },
+  "typecheck": {
+    "command": "pnpm typecheck",
+    "exitCode": 0
+  },
+  "productionBuild": {
+    "command": "$env:ER_NEXT_DIST_DIR='.next-qa'; pnpm build",
+    "exitCode": 0,
+    "productionCollectorBuildUnchanged": true
+  },
+  "migration": {
+    "file": "supabase/migrations/20261029121254_collection_reliability.sql",
+    "sha256": "6ba873e2fc55d55602153f645daeac3fdc3403ffc6cfbb802ca9bfd8129cdba0",
+    "generatedBy": "Supabase CLI migration new collection_reliability",
+    "appliedLocallyInIsolatedEngine": true,
+    "allPriorMigrationsAppliedInOrder": true,
+    "appliedToOperationalDatabase": false
+  },
+  "verified": [
+    "Personal partial/full writes use a consistent UID key; existing UID hash format retained",
+    "Both save orders preserve complete detail without duplicate participants",
+    "Eight personal rows never mark a match complete; 9/24-player full responses supported",
+    "Bad dates, duplicate/mismatched identities and short full responses rejected before storage",
+    "Full-match replacement and completion metadata rollback together on participant write failure",
+    "Transient queue failures beyond four attempts remain retryable after cooldown and remain counted",
+    "Permanent upstream failures isolated; selected admin retries preserve active/completed work",
+    "Job finalization errors propagate; heartbeat ownership and timer cleanup checked",
+    "Database lease blocks an active worker; expired jobs and queue claims recovered",
+    "Total collection failure recorded as failed and returned as HTTP 503",
+    "Snapshot publication rolls back every live table after later-table failure, missing batches, or scope mismatch",
+    "Successful publication updates all three datasets and removes staging rows",
+    "Public/anonymous function execution revoked; staging RLS enabled",
+    "Retry API validates authorization, bounded IDs and redacts diagnostic strings"
+  ],
+  "operationalChanges": {
+    "databaseWrites": false,
+    "schedulerChanged": false,
+    "serverRestarted": false,
+    "environmentChanged": false,
+    "productionDeployed": false
+  },
+  "unverified": [
+    "New RPC through actual Supabase Data API",
+    "Concurrent OS processes/connections",
+    "Large operational snapshot workload",
+    "Next scheduled execution",
+    "Browser visual state"
+  ]
+}

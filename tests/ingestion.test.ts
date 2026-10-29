@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PLAYER_ANALYSIS_VERSION } from "@/lib/player-analysis";
 import {
   resolvePlayerUserNum,
   fetchSnapshotPlayers,
@@ -46,7 +47,7 @@ describe("snapshot player selection", () => {
   ])("reuses stored patch 12.$major games from $date with exact version filters", async ({ major, date }) => {
     const filters: unknown[][] = [];
     const query: any = {
-      select: () => query, order: () => query, gt: () => query,
+      select: () => query, order: () => query, gt: () => query, not: () => query,
       gte: (column: string, value: unknown) => { filters.push([column, value]); return query; },
       eq: (column: string, value: unknown) => { filters.push([column, value]); return query; },
       limit: async () => ({ data: [{
@@ -63,6 +64,7 @@ describe("snapshot player selection", () => {
     expect(filters).toEqual([
       ["started_at", `${date}T02:00:00.000Z`],
       ["matching_mode", 3], ["matching_team_mode", 3],
+      ["detail_analysis_version", PLAYER_ANALYSIS_VERSION], ["detail_build_version", 2],
       ["version_season", 12], ["version_major", major], ["version_minor", 0]
     ]);
     expect(rows[0].game_id).toBe(100);
@@ -80,7 +82,7 @@ describe("snapshot player selection", () => {
     const afterIds: number[] = [];
     let afterId = 0;
     const query: any = {
-      select: () => query, gte: () => query, eq: () => query, order: () => query,
+      select: () => query, gte: () => query, eq: () => query, order: () => query, not: () => query,
       gt: (_column: string, value: number) => { afterId = value; afterIds.push(value); return query; },
       limit: async (size: number) => ({ data: matches.filter((match) => match.game_id > afterId).slice(0, size), error: null })
     };
@@ -119,6 +121,7 @@ describe("stored game completeness", () => {
       { game_id: 3, status: "processing", attempts: 2 }
     ];
     const matches: any = { select: () => matches, order: () => matches,
+      or: (value: string) => { filters.push(["missing_details", value]); return matches; },
       eq: (key: string, value: unknown) => { filters.push([key, value]); return matches; },
       gte: (key: string, value: unknown) => { filters.push([key, value]); return matches; },
       lt: (key: string, value: unknown) => { filters.push([key, value]); return matches; },
@@ -136,24 +139,24 @@ describe("stored game completeness", () => {
     ]);
     expect(filters).toContainEqual(["version_major", 7]);
     expect(filters).toContainEqual(["matching_mode", 3]);
-    expect(filters).toContainEqual(["match_players.build_data_version", 2]);
+    expect(filters).toContainEqual(["missing_details", `detail_collected_at.is.null,detail_build_version.lt.2,detail_analysis_version.lt.${PLAYER_ANALYSIS_VERSION}`]);
   });
-  it("finds complete games beyond Supabase's first 1000 participant rows", async () => {
-    const participants = Array.from({ length: 100 }, (_, index) =>
-      Array.from({ length: 24 }, () => ({ game_id: index + 1 }))).flat();
-    const ranges: number[][] = [];
+  it("checks completion markers in bounded match batches instead of counting participants", async () => {
+    const matches = Array.from({ length: 1200 }, (_, index) => ({ game_id: index + 1 }));
+    const batches: number[] = [];
+    let ids: number[] = [];
     const query: any = {
-      select: () => query, in: () => query, gte: () => query, order: () => query,
-      range: async (from: number, to: number) => {
-        ranges.push([from, to]);
-        return { data: participants.slice(from, to + 1), error: null };
+      select: () => query, gt: () => query, not: () => query, gte: () => query,
+      in: (_key: string, values: number[]) => { ids = values; batches.push(ids.length); return query; },
+      limit: async () => {
+        return { data: matches.filter((row) => ids.includes(row.game_id)), error: null };
       }
     };
     const complete = await findCompleteAnalysisGameIds({ from: () => query } as any,
-      Array.from({ length: 100 }, (_, index) => index + 1));
-    expect(complete.size).toBe(100);
-    expect(complete.has(100)).toBe(true);
-    expect(ranges).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
+      matches.map((row) => row.game_id));
+    expect(complete.size).toBe(1200);
+    expect(complete.has(1200)).toBe(true);
+    expect(batches).toEqual([500, 500, 200]);
   });
 });
 

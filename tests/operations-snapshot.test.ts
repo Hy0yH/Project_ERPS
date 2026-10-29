@@ -27,10 +27,14 @@ describe("operational freshness and batch failure evidence", () => {
   it("records the exact failing batch and stops writing subsequent batches", async () => {
     vi.spyOn(console, "info").mockImplementation(() => {});
     const writes: number[][] = [], updates: Array<Record<string, unknown>> = [];
-    const db = { from: (table: string) => table === "ingestion_runs" ? {
-      insert: () => ({ select: () => ({ single: async () => ({ data: { id: 9 }, error: null }) }) }),
-      update: (value: Record<string, unknown>) => { updates.push(value); return { eq: async () => ({ error: null }) }; }
-    } : { upsert: async (rows: Array<{ id: number }>) => { writes.push(rows.map((row) => row.id)); return { error: writes.length === 2 ? { code: "57014" } : null }; } } };
+    const db = { rpc: async (name: string, args: any) => {
+      if (name === "begin_ingestion_run") return { data: 9, error: null };
+      if (name === "finish_ingestion_run") updates.push({ status: args.p_status, error_message: JSON.stringify(args.p_diagnostic) });
+      return { data: true, error: null };
+    }, from: (table: string) => {
+      expect(table).toBe("snapshot_staging_batches");
+      return { upsert: async (value: { rows: Array<{ id: number }> }) => { writes.push(value.rows.map((row) => row.id)); return { error: writes.length === 2 ? { code: "57014" } : null }; } };
+    } };
     vi.mocked(getSupabaseAdmin).mockReturnValue(db as never);
     await expect(runSnapshotBuild((progress) => writeSnapshotBatches(db as never, "team_comp_stats",
       [1, 2, 3, 4, 5].map((id) => ({ id })), "id", progress, 2))).rejects.toMatchObject({ code: "57014" });

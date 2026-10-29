@@ -1,0 +1,49 @@
+{
+  "reviewDateKst": "2026-10-29",
+  "sourceCommit": "f29f01cce75486455269560e3b4518c33274c810",
+  "scope": "Source review, mocked failure reproduction, read-only connected database observations",
+  "applicationCodeChanged": false,
+  "operationalWritesPerformed": false,
+  "existingTests": { "files": 9, "passed": 51, "failed": 0, "vitestVersion": "3.2.4", "platform": "Windows" },
+  "isolatedTests": {
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "baselineCases": 6,
+    "reviewCases": [
+      { "id": "REVIEW-1", "issue": "ERPS-032", "scenario": "Save one player's partial history with identity, then save the full 24-player UID-only match without identity", "observedPlayerRows": 25, "observedRowsForOneUid": 2 },
+      { "id": "REVIEW-2", "issue": "ERPS-034", "scenario": "Five collection runs with a persistent transient detail error", "detailCalls": 4, "finalStatus": "failed", "finalAttempts": 4, "fifthRunFailedMatches": 0, "fifthRunPendingMatches": 0 },
+      { "id": "REVIEW-3", "issue": "ERPS-036", "scenario": "All selected ranker history requests fail", "selectedRankers": 1, "failedRankers": 1, "savedMatches": 0, "runStatus": "success", "warningPresent": true },
+      { "id": "REVIEW-4", "issue": "ERPS-035", "scenario": "Run-finalization UPDATE returns an error", "callReturned": true, "savedMatches": 1, "persistedRunStatus": "running", "finishedAtPresent": false },
+      { "id": "REVIEW-5", "issue": "ERPS-033", "scenario": "Save individual histories for eight participants of a 24-player match, then process its queue item", "savedPlayerRows": 8, "detailCallsDuringCollection": 0, "queueStatus": "completed" }
+    ],
+    "interpretation": "Passing review cases confirm current defects; they do not confirm a fix. All API and database writes in these cases were mocked."
+  },
+  "databaseObservations": {
+    "checkedAtKst": "2026-10-29T20:34:15+09:00",
+    "patch": "12.7.0",
+    "season": 41,
+    "patchMatches": 106,
+    "completedQueueItemsCurrentPatchOrUnknownStart": 106,
+    "failedQueueItemsAllPatches": 0,
+    "historicalPendingQueueItems": 3512,
+    "recentCollection": { "id": 313, "status": "success", "savedMatches": 31, "finishedAtKst": "2026-10-29T20:33:24.519+09:00" },
+    "recentSnapshot": { "id": 314, "status": "success", "finishedAtKst": "2026-10-29T20:34:20.120+09:00" },
+    "participantDistributionCheckedAtKst": "2026-10-29T20:34:53+09:00",
+    "participantRowsPerMatch": [{ "players": 9, "games": 1 }, { "players": 18, "games": 1 }, { "players": 21, "games": 39 }, { "players": 24, "games": 65 }],
+    "duplicateNonemptyUidGroupsCurrentPatch": 0,
+    "runningRowsOlderThanFourHours": 13,
+    "staleRunningDetailCheckedAtKst": "2026-10-29T20:36:12+09:00",
+    "oldestStaleRunningStartedAtKst": "2026-09-07T14:23:40.529249+09:00",
+    "newestStaleRunningStartedAtKst": "2026-10-29T04:23:33.320956+09:00",
+    "postgresStatementTimeoutLogCountLast24Hours": 0,
+    "limitations": [
+      "Existing scheduled jobs could progress independently during read-only queries",
+      "Fewer than 24 participants is not evidence of truncation without comparison to the actual official match response",
+      "Stale run records do not prove whether the associated process is alive or why finalization was omitted",
+      "No exhausted retry items or duplicate nonempty UIDs were observed in the reviewed current data",
+      "No timeout log matches does not establish that historical snapshot performance problems are resolved"
+    ]
+  },
+  "unverified": ["All historical UID duplicates", "Official participant completeness for every stored match", "Large snapshot workload", "Multiple instance contention", "Next Windows schedule execution", "Browser visual state"]
+}
