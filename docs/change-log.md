@@ -65,7 +65,7 @@
 | [CHG-017](#chg-017) | 2026-10-28 | 버그 27건 정리·기능 이력 분리·후속 기록 지침 | 문서 반영, 웹 배포 적용 불필요 |
 | [CHG-018](#chg-018) | 2026-10-29 | 12.7 실험체 26종 밸런스 변경·점검 시작 시 기준 자동 전환 | 운영 배포·26종 수치 대조 완료 |
 | [CHG-019](#chg-019) | 2026-10-29 | 프로젝트 기획을 공식 패치 이력·실제 성적 비교·현재 근거 추천 중심으로 변경 | 문서 검증 완료, 웹 배포 적용 불필요 |
-| [CHG-020](#chg-020) | 2026-10-29 | 아이템·특성·루트·전술 스킬 상세 수집·통계와 패치/추천 맥락 연결 | Test 배포 READY, 운영 DB 적용·수집·main 배포 미실행 |
+| [CHG-020](#chg-020) | 2026-10-29 | 아이템·특성·루트·전술 스킬 상세 수집·통계와 패치/추천 맥락 연결 | Test 배포 READY, main 반영·로컬 동기화 완료, 운영 DB 적용·수집 미실행·운영 배포 미확인 |
 
 ## 상세 이력
 
@@ -326,6 +326,7 @@
 - **관련 버그:** 패치 버전 추출 보완은 [ERPS-030](issue-log.md#erps-030)에 원인·재현·검증을 별도 기록한다. 기존 [ERPS-005](issue-log.md#erps-005)의 실험체 자동 연결·방향 분류 전체를 해결한 것으로 보지 않는다.
 - **후속 Test 반영 — 2026-10-29 KST:** 사용자 요청으로 [9bf272d](https://github.com/Hy0yH/Project_ERPS/commit/9bf272d1dc8b5a81879fcba1dfae8cb4898bf9e0)를 기존 `Test` 브랜치에 fast-forward로 반영했다. Vercel `project-erps`의 해당 커밋 배포 `dpl_DsMsvTu1BsgV1nTEUkifcnZ9aXam`이 READY이며 [Test 주소](https://project-erps-git-test-erps1.vercel.app)에 연결됐다. `main`과 운영 배포는 변경하지 않았다.
 - **사이트 열기·미검증 범위:** Codex 브라우저 열기를 요청했다. 임시 공유 링크 생성과 브라우저의 Google 인증 페이지 이동은 자동 승인 검토에서 각각 거부되어, 로그인 이후 화면·새 API의 실제 응답은 확인하지 못했다. 접근 보호를 해제하거나 공유 링크를 우회 생성하지 않았다. 009 마이그레이션과 실제 재수집·집계는 계속 미실행이다.
+- **후속 main 반영·로컬 동기화 — 2026-10-29 KST:** 사용자 요청으로 GitHub `Test`의 [7c9533d](https://github.com/Hy0yH/Project_ERPS/commit/7c9533d02ffffdecffc8dcc24a087557b4a5c4d6)를 `main`에 fast-forward로 반영했다(기존 `main`: `5e10c3b`). 이 컴퓨터의 깨끗한 로컬 `main`도 같은 커밋으로 갱신했다. Windows 로컬에서 `pnpm test`(39파일·251테스트)와 `pnpm typecheck`가 통과했고, 소스 차이의 `git diff --check`도 통과했다. GitHub 연동의 브랜치 쓰기 권한 부족으로 로컬 Git 인증을 사용했다. 새 기능의 운영 배포 성공·실제 화면/API는 이번 작업에서 확인하지 않았으며, 009 마이그레이션·실제 상세 재수집·집계도 실행하지 않았다.
 - **근거:** [프로젝트 프롬프트](../PROJECT_PROMPT.md), [구현·운영 절차](build-meta-2026-10-29.md), [집계](../lib/build-stats.ts), [수집/조회](../lib/build-data.ts), [화면](../components/BuildMetaPanel.tsx), [상세 API](../app/api/characters/[characterCode]/builds/route.ts).
 
 ## DB 구조 변경 이력
