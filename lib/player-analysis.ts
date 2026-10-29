@@ -23,7 +23,7 @@ export { percentileScore, scoreReliability } from "@/lib/player-analysis-score";
 
 export const PLAYER_ANALYSIS_BASE_VERSION = 1;
 export const PLAYER_ANALYSIS_VERSION = 2;
-export const PLAYER_ANALYSIS_CACHE_VERSION = 20;
+export const PLAYER_ANALYSIS_CACHE_VERSION = 21;
 export const PLAYER_ANALYSIS_GAME_LIMIT = 50;
 export const PLAYER_ANALYSIS_PEER_GAME_LIMIT = 5;
 export const PLAYER_ANALYSIS_CACHE_HOURS = 6;

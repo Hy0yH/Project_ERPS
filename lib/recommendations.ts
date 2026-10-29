@@ -1,6 +1,7 @@
 import {
   getAllPatchChanges,
   getCharacterMeta,
+  getCharacterBuildMeta,
   getCharacters,
   getPlayerSummary,
   getTeamComps,
@@ -158,6 +159,10 @@ export async function buildRecommendations(input: RecommendationInput): Promise<
     });
 
   const recommendations = scored.sort((a, b) => b.score - a.score).slice(0, limit);
+  await Promise.all(recommendations.map(async (recommendation) => {
+    const buildMeta = await getCharacterBuildMeta(recommendation.character.character_code, recommendation.character.weapon_code ?? 0).catch(() => null);
+    if (buildMeta) (recommendation.context as RecommendationContext).buildMeta = buildMeta;
+  }));
   const explained = await explainRecommendation({
     nickname,
     teammateNames: teammateCodes.map((code) =>

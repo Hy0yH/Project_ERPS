@@ -6,6 +6,7 @@ import type {
   CombatScoreProfile
 } from "@/lib/combat-archetypes";
 import type { PlayerMatchDetails } from "@/lib/match-details";
+import type { BuildMeta, BuildStats } from "@/lib/build-stats";
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -158,6 +159,7 @@ export type Recommendation = {
 };
 
 export type RecommendationContext = {
+  buildMeta?: BuildMeta;
   source: "selected_teammates" | "global_comp" | "global_meta";
   title: string;
   dataScope: PlayerDataScope;
@@ -339,6 +341,8 @@ export type PlayerAnalysisStatistics = {
 };
 
 export type PlayerAnalysis = {
+  build_meta?: BuildMeta[];
+  build_usage?: BuildStats;
   player: {
     user_num: number;
     nickname: string;

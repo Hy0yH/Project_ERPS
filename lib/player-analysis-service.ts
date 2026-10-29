@@ -43,6 +43,8 @@ import { weaponCodeForType, weaponName } from "@/lib/weapons";
 import { runAnalysisJob, type AnalysisProgress, type AnalysisStage } from "@/lib/analysis-jobs";
 import { getKoreanGameNames } from "@/lib/game-catalog";
 import { labelMatchDetails } from "@/lib/match-details";
+import { buildUsageStats, labelBuildStats } from "@/lib/build-stats";
+import { getCharacterBuildMeta } from "@/lib/data";
 
 export type AnalysisPickSelection = { characterCode: number; weaponCode: number };
 let officialCombatArchetypeCache: {
@@ -256,6 +258,10 @@ async function buildWithCache(nickname: string, forceRefresh: boolean, pick?: An
       }
     };
     const names = await getKoreanGameNames();
+    analysis.build_usage = labelBuildStats(buildUsageStats(selectedRows), names);
+    analysis.build_meta = (await Promise.all(analysis.pick_profile.picks.slice(0, 3).map((pick) =>
+      getCharacterBuildMeta(pick.character_code, pick.weapon_code).catch(() => null)
+    ))).flatMap((meta) => meta && meta.patch_key === analysis.scope.patch_key ? [meta] : []);
     analysis.recent_matches = analysis.recent_matches.map((match) => ({ ...match,
       details: match.details ? labelMatchDetails(match.details, names) : undefined }));
     report("explain");

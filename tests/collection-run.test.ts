@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/supabase", () => ({ getSupabaseAdmin: vi.fn() }));
+vi.mock("@/lib/build-data", async (original) => ({ ...await original<typeof import("@/lib/build-data")>(), syncBuildCatalog: vi.fn(async () => null) }));
 vi.mock("@/lib/collection-state", () => ({
   collectionStatePath: () => null, loadCollectionState: async () => ({}), saveCollectionState: async () => {}
 }));

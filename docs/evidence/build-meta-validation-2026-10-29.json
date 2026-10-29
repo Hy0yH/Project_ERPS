@@ -1,0 +1,32 @@
+{
+  "executionDateKst": "2026-10-29",
+  "environment": "Windows local checkout; mocked external API/DB for automated tests",
+  "baseline": { "testFilesPassed": 35, "testsPassed": 225, "typecheck": "passed" },
+  "verification": {
+    "testFilesPassed": 39,
+    "testsPassed": 251,
+    "typecheck": "passed",
+    "productionBuild": "passed in isolated .next-build-meta-qa",
+    "rendering": "server static markup tests; no browser visual verification",
+    "storedOfficialCapture": {
+      "patchVersion": "12.7",
+      "generalModeBuildChanges": ["진실의 칼날", "이단심판관", "서슬가시 체인"],
+      "mode": "existing local official-text capture; no new authenticated API request"
+    },
+    "historyOrderAndUniqueIds": { "changeEntries": 20, "issueEntries": 30, "status": "passed" },
+    "localLinksCheckedBeforeReceiptAdded": 183
+  },
+  "notExecuted": [
+    "production database migration",
+    "live authenticated Eternal Return API collection",
+    "production snapshot rebuild",
+    "deployment",
+    "production or browser visual verification"
+  ],
+  "configuration": {
+    "apiCredentialsAvailableInCurrentWorkspace": false,
+    "databaseCredentialsAvailableInCurrentWorkspace": false
+  },
+  "requiredMigration": "supabase/migrations/009_build_meta.sql",
+  "operationalSteps": "Apply migration, update deployed/collector code, run existing authenticated collect-rankers then build-snapshots jobs."
+}

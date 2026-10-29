@@ -6,6 +6,11 @@ export type MatchDetailSource = {
   skills: Array<{ order: number; code: number }> | null;
   routeId: number | null;
   startArea: string | null;
+  collectionVersion?: number;
+  traitGroups?: { core: number | null; firstSub: number[] | null; secondSub: number[] | null };
+  tacticalSkillCode?: number | null;
+  tacticalSkillLevel?: number | null;
+  routeSlotId?: number | null;
 };
 export type PlayerMatchDetails = Omit<MatchDetailSource, "equipment" | "skills"> & {
   equipment: Array<{ slot: string; code: number; name?: string }> | null;
@@ -18,7 +23,7 @@ const slots: Record<string, string> = { "0": "무기", "1": "옷", "2": "머리"
 
 export function matchDetailSource(row: PlayerSourceRow): MatchDetailSource {
   const equipment = row.equipment as Record<string, unknown> | undefined;
-  const saved = (equipment?.__analysis as Record<string, unknown> | undefined)?.details as MatchDetailSource | undefined;
+  const saved = (row.build_details ?? (equipment?.__analysis as Record<string, unknown> | undefined)?.details) as MatchDetailSource | undefined;
   if (saved) return saved;
   const items = equipment?.items ?? equipment;
   const traitKeys = ["traitFirstCore", "traitFirstSub", "traitSecondSub"];
@@ -32,7 +37,16 @@ export function matchDetailSource(row: PlayerSourceRow): MatchDetailSource {
       .sort((a, b) => a.order - b.order).slice(0, 40) : null,
     routeId: positive(row.routeIdOfStart ?? row.route_id_of_start),
     startArea: row.placeOfStart != null ? String(row.placeOfStart).slice(0, 80) :
-      readAnalysisNumber(row, "place_of_start") ? String(row.place_of_start) : null
+      readAnalysisNumber(row, "place_of_start") ? String(row.place_of_start) : null,
+    collectionVersion: 2,
+    traitGroups: {
+      core: positive(row.traitFirstCore),
+      firstSub: Array.isArray(row.traitFirstSub) ? row.traitFirstSub.flatMap((code) => positive(code) ? [Number(code)] : []) : null,
+      secondSub: Array.isArray(row.traitSecondSub) ? row.traitSecondSub.flatMap((code) => positive(code) ? [Number(code)] : []) : null
+    },
+    tacticalSkillCode: positive(row.tacticalSkillGroup),
+    tacticalSkillLevel: positive(row.tacticalSkillLevel),
+    routeSlotId: positive(row.routeSlotId)
   };
 }
 

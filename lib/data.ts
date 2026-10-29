@@ -4,6 +4,8 @@ import { getBundledPatchChanges, mergePatchChanges } from "@/lib/bundled-patch-c
 import { getActivePatch } from "@/lib/patch-version";
 import { DEFAULT_RANK_SCOPE, parseRankScope, sampleStatus, type RankScope } from "@/lib/rank-scopes";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { enrichBuildMeta, invalidateBuildReads } from "@/lib/build-data";
+import type { BuildMeta } from "@/lib/build-stats";
 import {
   avgRankScore,
   characterMetaScore,
@@ -29,11 +31,13 @@ const compCache = createAsyncCache<TeamCompStat[]>(60_000);
 const topCompCache = createAsyncCache<TeamCompStat[]>(60_000);
 const characterCache = createAsyncCache<Character[]>(60_000, 1);
 const metaCache = createAsyncCache<CharacterMeta[]>(60_000);
+const buildMetaCache = createAsyncCache<BuildMeta | null>(60_000, 64);
 const compCountCache = createAsyncCache<number>(60_000);
 const patchCache = createAsyncCache<Awaited<ReturnType<typeof getActivePatch>>>(60_000, 1);
 const snapshotCache = createAsyncCache<{ period_start: string; period_end: string } | null>(60_000);
 export function invalidateMetaReads() {
-  for (const cache of [compCache, topCompCache, characterCache, metaCache, compCountCache, patchCache, snapshotCache]) cache.clear();
+  for (const cache of [compCache, topCompCache, characterCache, metaCache, buildMetaCache, compCountCache, patchCache, snapshotCache]) cache.clear();
+  invalidateBuildReads();
 }
 
 export async function getCharacters(): Promise<Character[]> {
@@ -68,7 +72,7 @@ export async function getCharacterMeta(
 
     const { data, error } = await supabase
       .from("character_stats_snapshot")
-      .select("*, characters(*)")
+      .select("character_code,weapon_code,period_days,period_start,period_end,season_id,tier_filter,rank_scope,games,pick_rate,win_rate,top3_rate,average_rank,confidence_score,characters(*)")
       .eq("period_days", periodDays)
       .eq("rank_scope", rankScope)
       .eq("period_start", latestSnapshot.period_start)
@@ -104,6 +108,27 @@ export async function getCharacterMeta(
     }).sort(compareCharacterMeta);
 
     return assignCharacterRelativeTiers(meta);
+  });
+}
+
+export async function getCharacterBuildMeta(characterCode: number, weaponCode: number, requestedRankScope: RankScope = DEFAULT_RANK_SCOPE): Promise<BuildMeta | null> {
+  if (!isSupabaseConfigured()) return null;
+  const rankScope = parseRankScope(requestedRankScope);
+  return buildMetaCache.get(`${characterCode}:${weaponCode}:${rankScope}`, async () => {
+    const db = getSupabaseAdmin();
+    const [active, snapshot] = await Promise.all([
+      getReadPatch(db),
+      getLatestSnapshotInfo(db, "character_stats_snapshot", DEFAULT_PERIOD_DAYS, rankScope)
+    ]);
+    if (!snapshot || !active) return null;
+    const { data: row, error } = await db.from("character_stats_snapshot").select("build_stats")
+      .eq("character_code", characterCode).eq("weapon_code", weaponCode).eq("period_days", DEFAULT_PERIOD_DAYS)
+      .eq("period_start", snapshot.period_start).eq("rank_scope", rankScope).eq("tier_filter", `current_patch:${active.patch_key}`).maybeSingle();
+    if (error?.code === "42703" || error?.code === "PGRST204") return null;
+    if (error) throw error;
+    if (!row?.build_stats || row.build_stats.version !== 1) return null;
+    return enrichBuildMeta({ character_code: characterCode, weapon_code: weaponCode, patch_key: active.patch_key, rank_scope: rankScope,
+      period_start: snapshot.period_start, period_end: snapshot.period_end, stats: row.build_stats });
   });
 }
 

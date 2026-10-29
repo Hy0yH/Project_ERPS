@@ -1,5 +1,7 @@
 import { sourceMetrics, spentCredits } from "@/lib/player-analysis-source";
 import { matchDetailSource } from "@/lib/match-details";
+import { BUILD_DETAIL_VERSION, buildUsageStats } from "@/lib/build-stats";
+import { collectRouteDefinitions, syncBuildCatalog } from "@/lib/build-data";
 import { runSnapshotBuild, writeSnapshotBatches, type SnapshotProgress } from "@/lib/snapshot-build";
 import {
   ER_ANALYSIS_PEER_GAME_LIMIT,
@@ -252,7 +254,9 @@ async function runRankerCollection() {
   try {
     await syncCharacters();
     const activePatch = await getActivePatch(supabase);
+    const buildCatalog = activePatch ? await syncBuildCatalog(activePatch.patch_key).catch(() => ({ error: "CATALOG_SYNC_FAILED" })) : null;
     await resetStaleQueueItems(supabase);
+    const detailBackfill = activePatch ? await enqueueBuildDetailBackfill(supabase, activePatch, ER_COLLECTION_MAX_NEW_MATCHES) : 0;
 
     const queueResult = await processQueuedMatches(
       supabase,
@@ -380,6 +384,7 @@ async function runRankerCollection() {
     const skippedExistingMatches = existingGameIds.size;
     const pendingMatches = await countPendingQueueItems(supabase, activePatch);
     const warnings = [
+      buildCatalog && "error" in buildCatalog ? "Build catalog refresh failed; match collection continued and will retry next run." : "",
       skippedMissingIdentifier
         ? `Skipped ${skippedMissingIdentifier} rankers without a usable identifier.`
         : "",
@@ -402,6 +407,8 @@ async function runRankerCollection() {
       .eq("id", run.data.id);
     return {
       savedMatches,
+      buildCatalog,
+      detailBackfill,
       attemptedUsers,
       skippedMissingIdentifier,
       failedRankers,
@@ -809,7 +816,8 @@ async function hasSavedGamePlayers(supabase: ReturnType<typeof getSupabaseAdmin>
     .from("match_players")
     .select("*", { count: "exact", head: true })
     .eq("game_id", gameId)
-    .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION);
+    .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION)
+    .gte("build_data_version", BUILD_DETAIL_VERSION);
   if (error) throw error;
   return Number(count ?? 0) >= 8;
 }
@@ -822,7 +830,8 @@ async function hasCompleteAnalysisGame(
     .from("match_players")
     .select("*", { count: "exact", head: true })
     .eq("game_id", gameId)
-    .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION);
+    .gte("analysis_data_version", PLAYER_ANALYSIS_VERSION)
+    .gte("build_data_version", BUILD_DETAIL_VERSION);
   if (error) throw error;
   return Number(count ?? 0) >= 8;
 }
@@ -838,6 +847,7 @@ export async function findCompleteAnalysisGameIds(
     for (let from = 0; ; from += SNAPSHOT_PAGE_SIZE) {
       const { data, error } = await supabase.from("match_players").select("game_id")
         .in("game_id", batch).gte("analysis_data_version", PLAYER_ANALYSIS_VERSION)
+        .gte("build_data_version", BUILD_DETAIL_VERSION)
         .order("game_id", { ascending: true }).order("user_num", { ascending: true })
         .range(from, from + SNAPSHOT_PAGE_SIZE - 1);
       if (error) throw error;
@@ -853,6 +863,30 @@ export async function findCompleteAnalysisGameIds(
       .filter(([, count]) => count >= 8)
       .map(([gameId]) => gameId)
   );
+}
+
+// Old, already-collected current-patch matches also need the newly retained fields.
+// Reopen completed queue entries only; preserve in-flight jobs and failed retries.
+export async function enqueueBuildDetailBackfill(
+  supabase: ReturnType<typeof getSupabaseAdmin>, patch: PatchVersion, limit = 1000
+) {
+  if (limit <= 0) return 0;
+  let query = supabase.from("matches").select("game_id,started_at,match_players!inner(build_data_version)")
+    .eq("matching_mode", 3).eq("matching_team_mode", 3)
+    .eq("version_season", patch.version_season).eq("version_major", patch.version_major).eq("version_minor", patch.version_minor)
+    .gte("started_at", patch.patch_start_at).lt("match_players.build_data_version", BUILD_DETAIL_VERSION)
+    .order("game_id", { ascending: false });
+  if (ER_SEASON_ID) query = query.eq("season_id", ER_SEASON_ID);
+  const { data, error } = await query.limit(Math.min(1000, Math.floor(limit)));
+  if (error) throw error;
+  const candidates = (data ?? []).map((row) => ({ gameId: Number(row.game_id), gameRow: { startDtm: row.started_at }, sourceUserId: null, sourceNickname: "" }));
+  await enqueueCandidateGames(supabase, candidates);
+  for (let from = 0; from < candidates.length; from += 200) {
+    const reopened = await supabase.from("match_ingestion_queue").update({ status: "pending", attempts: 0, processed_at: null, last_error: null, updated_at: new Date().toISOString() })
+      .in("game_id", candidates.slice(from, from + 200).map((row) => row.gameId)).eq("status", "completed");
+    if (reopened.error) throw reopened.error;
+  }
+  return candidates.length;
 }
 
 async function fetchCollectionCursors(
@@ -1145,6 +1179,7 @@ export async function saveGame(payload: Record<string, unknown>, options: SaveGa
     mmr_after: Number(player.mmrAfter ?? 0),
     best_weapon: Number(player.bestWeapon ?? 0),
     equipment: equipmentWithAnalysisMetrics(player.equipment, player),
+    build_data_version: BUILD_DETAIL_VERSION,
     character_level: Number(player.characterLevel ?? 0),
     player_deaths: Number(player.playerDeaths ?? 0),
     monster_kill: Number(player.monsterKill ?? 0),
@@ -1239,6 +1274,17 @@ async function buildSnapshotData(periodDays: number, progress: SnapshotProgress)
     };
   }
 
+  const routeCounts = new Map<number, number>();
+  for (const player of players) {
+    const id = matchDetailSource(player).routeId;
+    if (id) routeCounts.set(id, (routeCounts.get(id) ?? 0) + 1);
+  }
+  progress("collect_routes", routeCounts.size);
+  const routes = latestPatch ? await collectRouteDefinitions(
+    [...routeCounts].sort((a, b) => b[1] - a[1]).map(([id]) => id), latestPatch.patch_key,
+    Math.max(0, Math.floor(getOptionalNumberEnv("ER_ROUTE_FETCH_LIMIT", 20)))
+  ) : null;
+
   const { data: characters, error: charactersError } = await supabase
     .from("characters")
     .select("character_code, weapon_types")
@@ -1309,7 +1355,8 @@ async function buildSnapshotData(periodDays: number, progress: SnapshotProgress)
     patchKey: latestPatch?.patch_key ?? null,
     rankScopes: RANK_SCOPE_OPTIONS.length,
     tierFilter,
-    benchmarks: benchmarkRows.length
+    benchmarks: benchmarkRows.length,
+    routes
   };
 }
 
@@ -1365,7 +1412,7 @@ function buildMetricBenchmarkRows(
   });
 }
 
-function buildCharacterSnapshotRows(
+export function buildCharacterSnapshotRows(
   players: any[],
   rankScope: RankScope,
   periodDays: number,
@@ -1403,7 +1450,8 @@ function buildCharacterSnapshotRows(
       win_rate: ratio(wins, rows.length),
       top3_rate: ratio(top3, rows.length),
       average_rank: averageRank,
-      confidence_score: confidenceScore(rows.length)
+      confidence_score: confidenceScore(rows.length),
+      build_stats: buildUsageStats(rows)
     };
   });
 }
@@ -1412,7 +1460,8 @@ const SNAPSHOT_PLAYER_COLUMNS = [
   "game_id", "user_num", "team_number", "character_code", "game_rank", "player_kill", "player_assistant",
   "mmr_after", "mmr_gain", "best_weapon", "analysis_data_version", "play_time", "team_kill",
   "damage_to_player", "cc_time_to_player", "monster_kill", "damage_to_monster", "best_weapon_level",
-  "total_gain_vf_credit", "team_recover", "protect_absorb", "view_contribution:equipment->__analysis->viewContribution"
+  "total_gain_vf_credit", "team_recover", "protect_absorb", "build_details:equipment->__analysis->details", "route_id_of_start", "place_of_start",
+  "view_contribution:equipment->__analysis->viewContribution"
 ].join(",");
 
 export async function fetchSnapshotPlayers(

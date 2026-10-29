@@ -4,6 +4,7 @@ import { getBundledPatchChanges } from "@/lib/bundled-patch-changes";
 
 vi.mock("@/lib/data", () => ({
   getCharacterMeta: vi.fn(async () => []),
+  getCharacterBuildMeta: vi.fn(async () => null),
   getTeamComps: vi.fn(async () => []),
   getCharacters: vi.fn(async () => [{ character_code: 24, name_ko: "아델라", weapon_types: ["Rapier", "Bat"] }]),
   getPatchHistory: vi.fn(),

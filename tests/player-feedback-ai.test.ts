@@ -5,6 +5,7 @@ import type { PlayerAnalysisInsight } from "@/lib/types";
 const { create } = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock("openai", () => ({ default: class { responses = { create }; } }));
 import { explainPlayerAnalysis } from "@/lib/openai";
+import { buildUsageStats } from "@/lib/build-stats";
 
 function fixture() {
   const result = buildPlayerAnalysis({ nickname: "검증", userNum: 999, playerRows: [], overallRows: [],
@@ -26,6 +27,17 @@ beforeEach(() => { vi.clearAllMocks(); vi.stubEnv("OPENAI_API_KEY", "test-key");
 afterEach(() => vi.unstubAllEnvs());
 
 describe("AI coaching boundary", () => {
+  it("supplies bounded build observations as context without changing canonical candidates", async () => {
+    const input = fixture();
+    input.build_usage = buildUsageStats(Array.from({ length: 20 }, (_, index) => ({ gameId: index + 1, gameRank: 1, routeIdOfStart: index + 1 })));
+    respond({ summary: input.ai_summary, strengths: [], improvements: [] });
+    await explainPlayerAnalysis(input);
+    const payload = JSON.parse(create.mock.calls[0][0].input);
+    expect(payload.buildContext.playerUsage.coverage.routes).toBe(20);
+    expect(payload.buildContext.playerUsage.groups.routes).toHaveLength(3);
+    expect(create.mock.calls[0][0].instructions).toContain("선택 편향");
+    expect(payload.allowedImprovements).toEqual(input.improvement_priorities);
+  });
   it("preserves canonical facts, task order, and omitted candidates while adding an allowed note", async () => {
     const input = fixture();
     respond({ summary: "주력 픽의 기록을 바탕으로 확인할 행동을 살펴보세요.", strengths: [],

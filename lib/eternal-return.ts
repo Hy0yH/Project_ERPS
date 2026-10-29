@@ -146,6 +146,17 @@ export async function fetchGameData(metaType: string, version: "v1" | "v2" = "v1
   return erFetch<Record<string, unknown>[]>(`/${version}/data/${metaType}`);
 }
 
+export async function fetchGameDataHashes() {
+  return erFetch<Record<string, string | number>>("/v2/data/hash");
+}
+
+export async function fetchWeaponRoute(routeId: number) {
+  if (!Number.isSafeInteger(routeId) || routeId <= 0) throw new Error("Invalid route ID");
+  // This endpoint uses `result`, unlike the standard `data`/`userGames` envelope.
+  const payload = await erFetch<{ result?: Record<string, unknown>[] }>(`/v1/weaponRoutes/recommend?routeId=${routeId}`);
+  return payload.result ?? [];
+}
+
 export async function fetchKoreanL10n() {
   const payload = await erFetch<Record<string, unknown>>("/v1/l10n/Korean");
   const l10Path = typeof payload.l10Path === "string" ? payload.l10Path : null;

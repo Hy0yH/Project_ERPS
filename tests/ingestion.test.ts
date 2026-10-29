@@ -5,6 +5,7 @@ import {
   selectRankersForDiscovery,
   splitSnapshotPlayers,
   findCompleteAnalysisGameIds,
+  enqueueBuildDetailBackfill,
   type CollectionCursorState
 } from "@/lib/ingestion";
 
@@ -110,6 +111,33 @@ describe("snapshot player selection", () => {
 });
 
 describe("stored game completeness", () => {
+  it("requeues current-patch missing details without resetting failed or processing jobs", async () => {
+    const filters: unknown[][] = [];
+    const queue = [
+      { game_id: 1, status: "completed", attempts: 1 },
+      { game_id: 2, status: "failed", attempts: 3 },
+      { game_id: 3, status: "processing", attempts: 2 }
+    ];
+    const matches: any = { select: () => matches, order: () => matches,
+      eq: (key: string, value: unknown) => { filters.push([key, value]); return matches; },
+      gte: (key: string, value: unknown) => { filters.push([key, value]); return matches; },
+      lt: (key: string, value: unknown) => { filters.push([key, value]); return matches; },
+      limit: async () => ({ data: queue.map((row) => ({ game_id: row.game_id, started_at: "2026-10-29T03:00:00Z" })), error: null }) };
+    const db: any = { from: (table: string) => table === "matches" ? matches : {
+      upsert: async (_rows: unknown[], options: { ignoreDuplicates: boolean }) => { expect(options.ignoreDuplicates).toBe(true); return { error: null }; },
+      update: (value: Record<string, unknown>) => ({ in: (_key: string, ids: number[]) => ({ eq: async (_column: string, status: string) => {
+        for (const row of queue) if (ids.includes(row.game_id) && row.status === status) Object.assign(row, value);
+        return { error: null };
+      } }) })
+    } };
+    expect(await enqueueBuildDetailBackfill(db, { patch_key: "12.7.0", version_season: 12, version_major: 7, version_minor: 0, patch_start_at: "2026-10-29T02:00:00Z", latest_match_at: "" })).toBe(3);
+    expect(queue.map(({ status, attempts }) => ({ status, attempts }))).toEqual([
+      { status: "pending", attempts: 0 }, { status: "failed", attempts: 3 }, { status: "processing", attempts: 2 }
+    ]);
+    expect(filters).toContainEqual(["version_major", 7]);
+    expect(filters).toContainEqual(["matching_mode", 3]);
+    expect(filters).toContainEqual(["match_players.build_data_version", 2]);
+  });
   it("finds complete games beyond Supabase's first 1000 participant rows", async () => {
     const participants = Array.from({ length: 100 }, (_, index) =>
       Array.from({ length: 24 }, () => ({ game_id: index + 1 }))).flat();

@@ -1,10 +1,12 @@
 import type { PatchChange } from "@/lib/types";
+import type { BuildPatchChange } from "@/lib/build-stats";
 
 export type ParsedPatchNote = {
   patchVersion: string;
   publishedAt: string | null;
   rawText: string;
   changes: Omit<PatchChange, "reviewed">[];
+  buildChanges: BuildPatchChange[];
 };
 
 export async function fetchPatchNoteText(url: string) {
@@ -25,8 +27,9 @@ export async function fetchPatchNoteText(url: string) {
 
 export function parsePatchNote(rawText: string, url: string): ParsedPatchNote {
   const patchVersion =
+    rawText.match(/(\d+\.\d+(?:[a-z]|\.\d+)?)\s*(?:패치\s*노트|patch\s*notes?)/i)?.[1] ??
     rawText.match(/(?:version|ver\.?|v)\s*([0-9]+\.[0-9]+[^\s]*)/i)?.[1] ??
-    rawText.match(/([0-9]+\.[0-9]+[a-z0-9.-]*)/)?.[1] ??
+    rawText.match(/(?<![\d.])(\d{1,3}\.\d{1,2}(?:[a-z]|\.\d{1,2})?)(?![\d.])/i)?.[1] ??
     new URL(url).pathname.split("/").filter(Boolean).at(-1) ??
     "unknown";
 
@@ -45,8 +48,53 @@ export function parsePatchNote(rawText: string, url: string): ParsedPatchNote {
     patchVersion,
     publishedAt: null,
     rawText,
-    changes
+    changes,
+    buildChanges: parseBuildPatchChanges(rawText, patchVersion)
   };
+}
+
+// Parse general-mode build sections separately from character and Cobalt changes.
+// Unknown names remain unreviewed; import resolves only exact catalog matches.
+export function parseBuildPatchChanges(text: string, patchVersion: string): BuildPatchChange[] {
+  let type: BuildPatchChange["entity_type"] | null = null;
+  let target = "";
+  let excludedMode = false;
+  const changes: BuildPatchChange[] = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.replace(/\u00a0/g, " ").trim();
+    if (!line) continue;
+    if (/^(?:코발트|cobalt|론울프)/i.test(line)) { excludedMode = true; type = null; target = ""; continue; }
+    if (/^(?:일반 모드|normal mode)$/i.test(line)) { excludedMode = false; continue; }
+    if (excludedMode) continue;
+    if (/^(?:아이템|무기|방어구|items?|weapons?|armou?r)$/i.test(line)) { type = "item"; target = ""; continue; }
+    if (/^(?:특성|traits?|augments?)$/i.test(line)) { type = "trait"; target = ""; continue; }
+    if (/^(?:전술 스킬|tactical skills?)$/i.test(line)) { type = "tactical_skill"; target = ""; continue; }
+    if (/^(?:실험체|캐릭터|characters?|코발트.*|cobalt.*|론울프.*|시스템.*|system.*|버그 수정.*|bug fixes?.*|신규.*|스킨.*)$/i.test(line)) { type = null; target = ""; continue; }
+    if (!type || /^(?:옷|머리|팔|다리|장식|팔\/장식|핵심|보조|공격|방어|지원)$/.test(line)) continue;
+    if (!hasBalanceSignal(line) && !/→|->/.test(line)) {
+      if (line.length <= 50 && !/[.!?。]|고유|지속 효과|사용 효과/.test(line)) target = line;
+      continue;
+    }
+    const inline = line.match(/^(.+?)\s+(?:공격력|방어력|방어 관통|스킬 증폭|체력|쿨다운|피해량)\s+\d/);
+    if (inline && inline[1].length < 40) target = inline[1].trim();
+    if (!target) continue;
+    const [beforeText, afterText] = line.split(/\s*(?:→|->)\s*/);
+    const before = afterText ? beforeText.replace(/^[^0-9+-]*/, "").trim() : null;
+    const after = afterText?.trim() ?? null;
+    let changeType: BuildPatchChange["change_type"] = /버그|수정|bug/i.test(line) ? "bugfix" : "adjustment";
+    if (changeType !== "bugfix" && before && after) {
+      const numbers = (value: string) => value.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+      const left = numbers(before), right = numbers(after);
+      const directions = left.length === right.length ? right.map((value, i) => Math.sign(value - left[i])).filter(Boolean) : [];
+      if (directions.length && directions.every((value) => value === directions[0])) {
+        const beneficial = directions[0] * (/쿨다운|cooldown/i.test(line) ? -1 : 1);
+        changeType = beneficial > 0 ? "buff" : "nerf";
+      }
+    }
+    changes.push({ patch_version: patchVersion, entity_type: type, target_code: null, target_name: target,
+      raw_change_text: `${target}: ${line}`.slice(0, 2000), before_value: before, after_value: after, change_type: changeType, reviewed: false });
+  }
+  return [...new Map(changes.map((change) => [`${change.entity_type}:${change.target_name}:${change.raw_change_text}`, change])).values()].slice(0, 500);
 }
 
 function extractCharacterSection(text: string) {

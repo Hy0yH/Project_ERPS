@@ -1802,3 +1802,7 @@ details.panel > summary { cursor: pointer; font-weight: 700; line-height: 1.6; }
     transform: none;
   }
 }
+/* Long skill sequences remain scrollable inside their own statistics table. */
+.build-stats-scroll { overflow-x: auto; max-width: 100%; }
+.build-stats-scroll table { width: 100%; min-width: 640px; }
+.build-stats-scroll th:first-child { min-width: 180px; max-width: 360px; white-space: normal; overflow-wrap: anywhere; }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { displayPercent, displayRank, getCharacterMeta, getCharacters, getPatchHistory, getTeamComps } from "@/lib/data";
+import { displayPercent, displayRank, getCharacterMeta, getCharacterBuildMeta, getCharacters, getPatchHistory, getTeamComps } from "@/lib/data";
+import { BuildMetaPanel } from "@/components/BuildMetaPanel";
 import { rankScopeLabel, DEFAULT_RANK_SCOPE } from "@/lib/rank-scopes";
 import { characterBrowseParams, parseCharacterBrowse, type CharacterBrowseQuery } from "@/lib/character-browser";
 import { getCharacterPatchMeta } from "@/lib/meta-history";
@@ -46,8 +47,11 @@ export default async function CharacterDetailPage({
   const characterName = character?.display_name ?? (catalogCharacter
     ? `${catalogCharacter.name_ko}${patchWeaponCode ? ` / ${weaponName(patchWeaponCode)}` : ""}`
     : `캐릭터 ${characterCode}`);
-  const patches = await getPatchHistory(characterCode, patchWeaponCode).catch(() => []);
-  const trend = character ? await getCharacterPatchMeta(characterCode, character.weapon_code, rankScope).catch(() => null) : [];
+  const [patches, buildMeta, trend] = await Promise.all([
+    getPatchHistory(characterCode, patchWeaponCode).catch(() => []),
+    patchWeaponCode ? getCharacterBuildMeta(characterCode, patchWeaponCode, rankScope).catch(() => undefined) : Promise.resolve(null),
+    character ? getCharacterPatchMeta(characterCode, character.weapon_code, rankScope).catch(() => null) : Promise.resolve([])
+  ]);
   const patchesByVersion = new Map<string, typeof patches>();
   for (const patch of patches) {
     const changes = patchesByVersion.get(patch.patch_version) ?? [];
@@ -92,6 +96,7 @@ export default async function CharacterDetailPage({
         <div className="empty">캐릭터 통계가 아직 없습니다.</div>
       )}
 
+      <div style={{ marginTop: 18 }}>{buildMeta === undefined ? <p role="status">상세 메타 통계를 불러오지 못했습니다.</p> : <BuildMetaPanel meta={buildMeta} />}</div>
       <section className="grid" style={{ marginTop: 18 }}>
         <div className="span-6 stack">
           <h2>좋은 조합</h2>
